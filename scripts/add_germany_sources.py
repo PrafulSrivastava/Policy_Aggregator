@@ -30,7 +30,7 @@ GERMANY_SOURCES = [
         "fetch_type": "html",
         "check_frequency": "daily",
         "is_active": True,
-        "metadata": {
+        "source_metadata": {
             "agency": "BMI",
             "route": "India → Germany",
             "description": "Official BMI student visa requirements and policy information"
@@ -44,7 +44,7 @@ GERMANY_SOURCES = [
         "fetch_type": "html",
         "check_frequency": "daily",
         "is_active": True,
-        "metadata": {
+        "source_metadata": {
             "agency": "BMI",
             "route": "India → Germany",
             "description": "Official BMI skilled worker visa requirements and policy information"
@@ -58,7 +58,7 @@ GERMANY_SOURCES = [
         "fetch_type": "html",
         "check_frequency": "daily",
         "is_active": True,
-        "metadata": {
+        "source_metadata": {
             "agency": "Auswärtiges Amt",
             "route": "India → Germany",
             "description": "Official Foreign Office student visa requirements and policy information"
@@ -72,7 +72,7 @@ GERMANY_SOURCES = [
         "fetch_type": "html",
         "check_frequency": "daily",
         "is_active": True,
-        "metadata": {
+        "source_metadata": {
             "agency": "Auswärtiges Amt",
             "route": "India → Germany",
             "description": "Official Foreign Office work visa requirements and policy information"
@@ -86,10 +86,52 @@ GERMANY_SOURCES = [
         "fetch_type": "html",
         "check_frequency": "daily",
         "is_active": True,
-        "metadata": {
+        "source_metadata": {
             "agency": "Make it in Germany",
             "route": "India → Germany",
             "description": "Official Make it in Germany portal for skilled worker visa information"
+        }
+    },
+    {
+        "country": "DE",
+        "visa_type": "Work",
+        "url": "https://www.bamf.de/EN/Themen/MigrationAufenthalt/ZuwandererDrittstaaten/Migrathek/migrathek-node.html",
+        "name": "Germany BAMF Work Visa Information",
+        "fetch_type": "html",
+        "check_frequency": "daily",
+        "is_active": True,
+        "source_metadata": {
+            "agency": "BAMF",
+            "route": "India → Germany",
+            "description": "Official BAMF immigration procedures, residence permits, and work-related immigration information"
+        }
+    },
+    {
+        "country": "DE",
+        "visa_type": "Student",
+        "url": "https://www.daad.de/en/study-and-research-in-germany/plan-your-studies/entry-and-residence/",
+        "name": "Germany DAAD Student Visa Information",
+        "fetch_type": "html",
+        "check_frequency": "daily",
+        "is_active": True,
+        "source_metadata": {
+            "agency": "DAAD",
+            "route": "India → Germany",
+            "description": "Official DAAD student visa requirements, entry requirements, and residence permits for students"
+        }
+    },
+    {
+        "country": "DE",
+        "visa_type": "Work",
+        "url": "https://www.arbeitsagentur.de/en/working-in-germany",
+        "name": "Germany Bundesagentur für Arbeit Work Visa Information",
+        "fetch_type": "html",
+        "check_frequency": "daily",
+        "is_active": True,
+        "source_metadata": {
+            "agency": "Bundesagentur für Arbeit",
+            "route": "India → Germany",
+            "description": "Official Federal Employment Agency work permit requirements and employment-related immigration information"
         }
     }
 ]

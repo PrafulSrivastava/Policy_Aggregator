@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block title %}{% if source %}Edit{% else %}Create{% endif %} Source - Policy Aggregator Admin{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <div class="bg-white shadow rounded-lg p-6">
+        <div class="mb-6">
+            <h1 class="text-2xl font-bold text-gray-900">
+                {% if source %}Edit{% else %}Create{% endif %} Policy Source
+            </h1>
+            <p class="mt-1 text-sm text-gray-500">
+                {% if source %}
+                    Update source configuration
+                {% else %}
+                    Create a new policy source to monitor for changes
+                {% endif %}
+            </p>
+        </div>
+
+        <!-- Error Message -->
+        <div id="errorMessage" class="hidden mb-4 rounded-md bg-red-50 p-4">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <h3 class="text-sm font-medium text-red-800" id="errorText"></h3>
+                </div>
+            </div>
+        </div>
+
+        <!-- Success Message -->
+        <div id="successMessage" class="hidden mb-4 rounded-md bg-green-50 p-4">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <h3 class="text-sm font-medium text-green-800">Source saved successfully!</h3>
+                </div>
+            </div>
+        </div>
+
+        <form id="sourceForm" class="space-y-6">
+            <input type="hidden" id="sourceId" value="{% if source %}{{ source.id }}{% endif %}">
+
+            <!-- Country -->
+            <div>
+                <label for="country" class="block text-sm font-medium text-gray-700">Country</label>
+                <select id="country" name="country" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="">Select country</option>
+                </select>
+                <p class="mt-1 text-sm text-red-600 hidden" id="country_error"></p>
+            </div>
+
+            <!-- Visa Type -->
+            <div>
+                <label for="visa_type" class="block text-sm font-medium text-gray-700">Visa Type</label>
+                <select id="visa_type" name="visa_type" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="">Select visa type</option>
+                    <option value="Student">Student</option>
+                    <option value="Work">Work</option>
+                    <option value="Tourist">Tourist</option>
+                    <option value="Business">Business</option>
+                    <option value="Family">Family</option>
+                    <option value="Other">Other</option>
+                </select>
+                <p class="mt-1 text-sm text-red-600 hidden" id="visa_type_error"></p>
+            </div>
+
+            <!-- URL -->
+            <div>
+                <label for="url" class="block text-sm font-medium text-gray-700">URL</label>
+                <input 
+                    type="url" 
+                    id="url" 
+                    name="url" 
+                    required 
+                    value="{% if source %}{{ source.url }}{% endif %}"
+                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="https://example.com/policy"
+                >
+                <p class="mt-1 text-sm text-red-600 hidden" id="url_error"></p>
+            </div>
+
+            <!-- Name -->
+            <div>
+                <label for="name" class="block text-sm font-medium text-gray-700">Name</label>
+                <input 
+                    type="text" 
+                    id="name" 
+                    name="name" 
+                    required 
+                    value="{% if source %}{{ source.name }}{% endif %}"
+                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="Germany Student Visa Source"
+                >
+                <p class="mt-1 text-sm text-gray-500">Human-readable name for this source</p>
+                <p class="mt-1 text-sm text-red-600 hidden" id="name_error"></p>
+            </div>
+
+            <!-- Fetch Type -->
+            <div>
+                <label for="fetch_type" class="block text-sm font-medium text-gray-700">Fetch Type</label>
+                <select id="fetch_type" name="fetch_type" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="">Select fetch type</option>
+                    <option value="html">HTML</option>
+                    <option value="pdf">PDF</option>
+                </select>
+                <p class="mt-1 text-sm text-red-600 hidden" id="fetch_type_error"></p>
+            </div>
+
+            <!-- Check Frequency -->
+            <div>
+                <label for="check_frequency" class="block text-sm font-medium text-gray-700">Check Frequency</label>
+                <select id="check_frequency" name="check_frequency" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="">Select check frequency</option>
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="custom">Custom</option>
+                </select>
+                <p class="mt-1 text-sm text-red-600 hidden" id="check_frequency_error"></p>
+            </div>
+
+            <!-- Is Active -->
+            <div class="flex items-center">
+                <input 
+                    type="checkbox" 
+                    id="is_active" 
+                    name="is_active" 
+                    {% if not source or source.is_active %}checked{% endif %}
+                    class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                >
+                <label for="is_active" class="ml-2 block text-sm text-gray-900">Active</label>
+            </div>
+
+            <!-- Form Actions -->
+            <div class="flex justify-end space-x-3">
+                <a href="/sources" class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    Cancel
+                </a>
+                <button 
+                    type="submit" 
+                    class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                >
+                    {% if source %}Update{% else %}Create{% endif %} Source
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+// Source data for pre-filling form in edit mode
+const sourceData = {% if source %}{{ source|tojson }}{% else %}null{% endif %};
+</script>
+<script src="/static/js/countries.js"></script>
+<script src="/static/js/forms.js"></script>
+{% endblock %}
+

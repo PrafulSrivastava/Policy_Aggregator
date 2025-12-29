@@ -66,28 +66,52 @@ class RouteSubscriptionRepository:
     async def list_paginated(
         self,
         page: int = 1,
-        page_size: int = 20
+        page_size: int = 20,
+        origin_country: Optional[str] = None,
+        destination_country: Optional[str] = None,
+        visa_type: Optional[str] = None,
+        is_active: Optional[bool] = None
     ) -> tuple[List[RouteSubscription], int]:
         """
-        List RouteSubscriptions with pagination.
+        List RouteSubscriptions with pagination and optional filtering.
         
         Args:
             page: Page number (1-indexed)
             page_size: Number of items per page
+            origin_country: Filter by origin country code (optional)
+            destination_country: Filter by destination country code (optional)
+            visa_type: Filter by visa type (optional)
+            is_active: Filter by active status (optional)
             
         Returns:
             Tuple of (list of RouteSubscription instances, total count)
         """
+        # Build query with filters
+        query = select(RouteSubscription)
+        count_query = select(func.count()).select_from(RouteSubscription)
+        conditions = []
+        
+        if origin_country:
+            conditions.append(RouteSubscription.origin_country == origin_country.upper())
+        if destination_country:
+            conditions.append(RouteSubscription.destination_country == destination_country.upper())
+        if visa_type:
+            conditions.append(RouteSubscription.visa_type == visa_type)
+        if is_active is not None:
+            conditions.append(RouteSubscription.is_active == is_active)
+        
+        if conditions:
+            query = query.where(and_(*conditions))
+            count_query = count_query.where(and_(*conditions))
+        
         # Get total count
-        count_result = await self.session.execute(
-            select(func.count()).select_from(RouteSubscription)
-        )
+        count_result = await self.session.execute(count_query)
         total = count_result.scalar() or 0
         
         # Get paginated results
         offset = (page - 1) * page_size
         result = await self.session.execute(
-            select(RouteSubscription)
+            query
             .order_by(RouteSubscription.created_at.desc())
             .limit(page_size)
             .offset(offset)

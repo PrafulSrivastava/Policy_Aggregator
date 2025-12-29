@@ -66,6 +66,21 @@ class UserRepository:
         )
         return result.scalar_one_or_none()
     
+    async def get_by_google_id(self, google_id: str) -> Optional[User]:
+        """
+        Get User by Google ID.
+        
+        Args:
+            google_id: Google user ID string
+            
+        Returns:
+            User instance or None if not found
+        """
+        result = await self.session.execute(
+            select(User).where(User.google_id == google_id)
+        )
+        return result.scalar_one_or_none()
+    
     async def update(self, user_id: uuid.UUID, update_data: dict) -> User:
         """
         Update a User.

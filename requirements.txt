@@ -1,6 +1,7 @@
 # FastAPI and ASGI server
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
+python-multipart>=0.0.21  # Required for form data handling
 
 # Database
 sqlalchemy>=2.0.0
@@ -25,6 +26,7 @@ responses>=0.24.0  # For mocking HTTP requests in tests
 # Authentication
 python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
+authlib>=1.2.0  # OAuth 2.0 library for Google OAuth
 
 # HTTP client (for fetchers)
 requests>=2.31.0

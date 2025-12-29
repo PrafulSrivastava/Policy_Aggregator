@@ -5,15 +5,23 @@ from fastapi.testclient import TestClient
 from uuid import uuid4
 
 from api.main import app
+from api.database import get_db
 from api.repositories.source_repository import SourceRepository
 from api.repositories.user_repository import UserRepository
 from api.auth.auth import get_password_hash, create_access_token
 
 
 @pytest.fixture
-def client():
-    """Create a test client for the FastAPI app."""
-    return TestClient(app)
+async def client(db_session):
+    """Create a test client for the FastAPI app with database dependency override."""
+    # Override get_db dependency to use test database session
+    async def override_get_db():
+        yield db_session
+    
+    app.dependency_overrides[get_db] = override_get_db
+    yield TestClient(app)
+    # Clean up overrides after test
+    app.dependency_overrides.clear()
 
 
 @pytest.fixture

@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+
+{% block title %}Change History - Policy Aggregator Admin{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <h1 class="text-2xl font-bold text-gray-900">Change History</h1>
+        <button onclick="exportChanges()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500">
+            Export to CSV
+        </button>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Filters</h2>
+        <form id="filterForm" method="GET" action="/changes" class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <!-- Route Filter -->
+            <div>
+                <label for="route_id" class="block text-sm font-medium text-gray-700">Route</label>
+                <select id="route_id" name="route_id" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="">All Routes</option>
+                    {% if routes %}
+                        {% for route in routes %}
+                        <option value="{{ route.id }}" {% if filters.route_id == route.id %}selected{% endif %}>
+                            {{ route.origin_country }} → {{ route.destination_country }}, {{ route.visa_type }}
+                        </option>
+                        {% endfor %}
+                    {% endif %}
+                </select>
+            </div>
+
+            <!-- Source Filter -->
+            <div>
+                <label for="source_id" class="block text-sm font-medium text-gray-700">Source</label>
+                <select id="source_id" name="source_id" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="">All Sources</option>
+                    {% if sources %}
+                        {% for source in sources %}
+                        <option value="{{ source.id }}" {% if filters.source_id == source.id %}selected{% endif %}>
+                            {{ source.name }}
+                        </option>
+                        {% endfor %}
+                    {% endif %}
+                </select>
+            </div>
+
+            <!-- Date Range Quick Options -->
+            <div>
+                <label for="date_range" class="block text-sm font-medium text-gray-700">Date Range</label>
+                <select id="date_range" name="date_range" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="">All Time</option>
+                    <option value="7days" {% if filters.date_range == '7days' %}selected{% endif %}>Last 7 days</option>
+                    <option value="30days" {% if filters.date_range == '30days' %}selected{% endif %}>Last 30 days</option>
+                    <option value="custom" {% if filters.date_range == 'custom' %}selected{% endif %}>Custom Range</option>
+                </select>
+            </div>
+
+            <!-- Custom Date Range (hidden by default) -->
+            <div id="customDateRange" class="hidden lg:col-span-2">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label for="start_date" class="block text-sm font-medium text-gray-700">Start Date</label>
+                        <input type="date" id="start_date" name="start_date" value="{{ filters.start_date }}" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label for="end_date" class="block text-sm font-medium text-gray-700">End Date</label>
+                        <input type="date" id="end_date" name="end_date" value="{{ filters.end_date }}" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filter Buttons -->
+            <div class="flex items-end space-x-3 lg:col-span-4">
+                <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    Apply Filters
+                </button>
+                <a href="/changes" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500">
+                    Clear Filters
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Changes Table -->
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200" id="changesTable">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" data-sort="detected_at">
+                            Detected At
+                            <span class="sort-indicator"></span>
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Route
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Source
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Change Summary
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200" id="changesTableBody">
+                    {% if changes and changes["items"] %}
+                        {% for change in changes["items"] %}
+                        <tr class="change-row {% if change.is_new %}bg-blue-50 border-l-4 border-blue-400{% endif %} hover:bg-gray-50 cursor-pointer" onclick="window.location.href='/changes/{{ change.id }}'">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                <div class="flex items-center">
+                                    {{ change.detected_at[:19]|replace('T', ' ') }}
+                                    {% if change.is_new %}
+                                    <span class="ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">New</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {% if change.route %}
+                                    {{ change.route.display }}
+                                {% else %}
+                                    <span class="text-gray-400">No route</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {{ change.source.name }}
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-900">
+                                <div class="max-w-md truncate" title="{{ change.summary }}">
+                                    {{ change.summary }}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="4" class="px-6 py-4 text-center text-sm text-gray-500">No changes found</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    {% if changes and changes.pages > 1 %}
+    <div class="bg-white rounded-lg shadow p-4">
+        <div class="flex items-center justify-between">
+            <div class="text-sm text-gray-700">
+                Showing <span class="font-medium">{{ ((changes.page - 1) * changes.page_size) + 1 }}</span>
+                to <span class="font-medium">{{ [changes.page * changes.page_size, changes.total]|min }}</span>
+                of <span class="font-medium">{{ changes.total }}</span> results
+            </div>
+            <div class="flex items-center space-x-2">
+                {% if changes.page > 1 %}
+                <a href="?page={{ changes.page - 1 }}{% if filters.route_id %}&route_id={{ filters.route_id }}{% endif %}{% if filters.source_id %}&source_id={{ filters.source_id }}{% endif %}{% if filters.start_date %}&start_date={{ filters.start_date }}{% endif %}{% if filters.end_date %}&end_date={{ filters.end_date }}{% endif %}" class="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Previous
+                </a>
+                {% else %}
+                <span class="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-300 cursor-not-allowed">Previous</span>
+                {% endif %}
+                
+                <span class="text-sm text-gray-700">
+                    Page <span class="font-medium">{{ changes.page }}</span> of <span class="font-medium">{{ changes.pages }}</span>
+                </span>
+                
+                {% if changes.page < changes.pages %}
+                <a href="?page={{ changes.page + 1 }}{% if filters.route_id %}&route_id={{ filters.route_id }}{% endif %}{% if filters.source_id %}&source_id={{ filters.source_id }}{% endif %}{% if filters.start_date %}&start_date={{ filters.start_date }}{% endif %}{% if filters.end_date %}&end_date={{ filters.end_date }}{% endif %}" class="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Next
+                </a>
+                {% else %}
+                <span class="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-300 cursor-not-allowed">Next</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+// Handle date range selection
+document.getElementById('date_range').addEventListener('change', function() {
+    const customRange = document.getElementById('customDateRange');
+    if (this.value === 'custom') {
+        customRange.classList.remove('hidden');
+    } else {
+        customRange.classList.add('hidden');
+        // Set dates based on selection
+        if (this.value === '7days') {
+            const endDate = new Date();
+            const startDate = new Date();
+            startDate.setDate(startDate.getDate() - 7);
+            document.getElementById('start_date').value = startDate.toISOString().split('T')[0];
+            document.getElementById('end_date').value = endDate.toISOString().split('T')[0];
+        } else if (this.value === '30days') {
+            const endDate = new Date();
+            const startDate = new Date();
+            startDate.setDate(startDate.getDate() - 30);
+            document.getElementById('start_date').value = startDate.toISOString().split('T')[0];
+            document.getElementById('end_date').value = endDate.toISOString().split('T')[0];
+        }
+    }
+});
+
+// Initialize custom date range visibility
+if (document.getElementById('date_range').value === 'custom') {
+    document.getElementById('customDateRange').classList.remove('hidden');
+}
+
+// Export changes to CSV
+async function exportChanges() {
+    try {
+        const filters = {
+            {% if filters.route_id %}route_id: '{{ filters.route_id }}',{% endif %}
+            {% if filters.source_id %}source_id: '{{ filters.source_id }}',{% endif %}
+            {% if filters.start_date %}start_date: '{{ filters.start_date }}',{% endif %}
+            {% if filters.end_date %}end_date: '{{ filters.end_date }}',{% endif %}
+        };
+        await API.exportChanges(filters);
+    } catch (error) {
+        alert(`Error exporting changes: ${error.message}`);
+    }
+}
+</script>
+{% endblock %}
+

@@ -26,8 +26,20 @@ class User(Base):
     )
     hashed_password = Column(
         String(255),
+        nullable=True,  # Nullable for OAuth-only users
+        comment="Bcrypt hashed password (nullable for OAuth users)"
+    )
+    google_id = Column(
+        String(255),
+        nullable=True,
+        unique=True,
+        comment="Google user ID for OAuth authentication"
+    )
+    auth_provider = Column(
+        String(50),
         nullable=False,
-        comment="Bcrypt hashed password"
+        default="password",
+        comment="Authentication provider: 'password' or 'google'"
     )
     
     # Status

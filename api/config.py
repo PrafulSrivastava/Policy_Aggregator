@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     EMAIL_FROM_ADDRESS: str = "alerts@policyaggregator.com"
     ADMIN_EMAIL: Optional[str] = None
     
+    # Google OAuth
+    GOOGLE_OAUTH_CLIENT_ID: Optional[str] = None
+    GOOGLE_OAUTH_CLIENT_SECRET: Optional[str] = None
+    GOOGLE_OAUTH_REDIRECT_URI: Optional[str] = None
+    
     # Email Templates
     EMAIL_TEMPLATE_DIR: str = "admin-ui/templates/emails"
     ADMIN_UI_URL: str = "http://localhost:8000"
@@ -38,7 +43,7 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     
     # CORS Configuration
-    CORS_ORIGINS: str = "http://localhost:8000,http://localhost:3000"
+    CORS_ORIGINS: str = "http://localhost:8000,http://localhost:3000,http://localhost:5173"
     CORS_ALLOW_CREDENTIALS: bool = True
     CORS_ALLOW_METHODS: List[str] = ["*"]
     CORS_ALLOW_HEADERS: List[str] = ["*"]

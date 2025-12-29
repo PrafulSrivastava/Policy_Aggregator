@@ -75,8 +75,47 @@ pip install -r requirements.txt
    - `DATABASE_URL`: PostgreSQL connection string
    - `JWT_SECRET_KEY`: Secret key for JWT token generation
    - `RESEND_API_KEY`: API key for Resend email service (optional for development)
+   - `GOOGLE_OAUTH_CLIENT_ID`: Google OAuth 2.0 Client ID (optional, for Google OAuth login)
+   - `GOOGLE_OAUTH_CLIENT_SECRET`: Google OAuth 2.0 Client Secret (optional, for Google OAuth login)
+   - `GOOGLE_OAUTH_REDIRECT_URI`: Google OAuth redirect URI (e.g., `http://localhost:8000/auth/google/callback`)
 
 See `.env.example` for all required variables and documentation.
+
+### Google OAuth Setup (Optional)
+
+To enable Google OAuth authentication:
+
+1. **Create Google Cloud Console Project:**
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Create a new project or select an existing one
+
+2. **Configure OAuth Consent Screen:**
+   - Go to **APIs & Services** → **OAuth consent screen**
+   - Choose **External** user type (for testing) or **Internal** (for Google Workspace)
+   - Fill in required fields (App name, User support email, Developer contact)
+   - Add scopes: `openid`, `email`, `profile`
+
+3. **Create OAuth 2.0 Credentials:**
+   - Go to **APIs & Services** → **Credentials**
+   - Click **Create Credentials** → **OAuth client ID**
+   - Choose **Web application**
+   - Add authorized redirect URIs:
+     - Development: `http://localhost:8000/auth/google/callback`
+     - Production: `https://yourdomain.com/auth/google/callback`
+
+4. **Add Credentials to `.env`:**
+   ```
+   GOOGLE_OAUTH_CLIENT_ID=your-client-id.apps.googleusercontent.com
+   GOOGLE_OAUTH_CLIENT_SECRET=your-client-secret
+   GOOGLE_OAUTH_REDIRECT_URI=http://localhost:8000/auth/google/callback
+   ```
+
+5. **Run Database Migration:**
+   ```bash
+   alembic upgrade head
+   ```
+
+The "Sign in with Google" button will appear on the login page once OAuth credentials are configured.
 
 ### Database Setup
 

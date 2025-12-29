@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import SQLAlchemyError
 
 from api.config import settings
@@ -15,9 +16,10 @@ from api.middleware.error_handler import (
     database_exception_handler,
     general_exception_handler
 )
+from api.middleware.auth import WebAuthRedirectException
 from api.middleware.logging import RequestLoggingMiddleware
-from api.routes import health, auth
-from api.routes.api import routes_router, sources_router, jobs_router
+from api.routes import health, auth, web
+from api.routes.api import dashboard_router, routes_router, sources_router, jobs_router, changes_router, status_router
 
 # Setup logging
 setup_logging()
@@ -68,6 +70,15 @@ app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(SQLAlchemyError, database_exception_handler)
 app.add_exception_handler(Exception, general_exception_handler)
 
+
+async def web_auth_redirect_handler(request: Request, exc: WebAuthRedirectException):
+    """Handle web authentication redirects."""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+
+
+app.add_exception_handler(WebAuthRedirectException, web_auth_redirect_handler)
+
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
@@ -80,26 +91,24 @@ app.add_middleware(
 # Add request logging middleware
 app.add_middleware(RequestLoggingMiddleware)
 
+# Mount static files (if needed)
+try:
+    app.mount("/static", StaticFiles(directory="admin-ui/static"), name="static")
+except Exception:
+    # Static directory might not exist yet, that's okay
+    pass
+
 # Register routes
 app.include_router(health.router)
 app.include_router(auth.router)
+app.include_router(web.router)
+app.include_router(dashboard_router)
 app.include_router(routes_router)
 app.include_router(sources_router)
 app.include_router(jobs_router)
+app.include_router(changes_router)
+app.include_router(status_router)
 
 
-@app.get("/", status_code=status.HTTP_200_OK)
-async def root() -> dict:
-    """
-    Root endpoint.
-    
-    Returns:
-        Welcome message and API information
-    """
-    return {
-        "message": "Policy Aggregator API",
-        "version": "1.0.0",
-        "docs": "/docs",
-        "health": "/health"
-    }
+# Note: Root endpoint "/" is now handled by web.router dashboard route
 

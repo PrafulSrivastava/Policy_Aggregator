@@ -1,7 +1,7 @@
 """API routes for route subscriptions."""
 
 import logging
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from api.database import get_db
 from api.models.schemas.route_subscription import (
     RouteSubscriptionCreate,
+    RouteSubscriptionUpdate,
     RouteSubscriptionResponse
 )
 from api.models.schemas.source import (
@@ -24,8 +25,13 @@ from api.repositories.route_subscription_repository import RouteSubscriptionRepo
 from api.repositories.source_repository import SourceRepository
 from api.services.fetcher_manager import fetch_and_process_source, PipelineResult
 from api.services.scheduler import run_daily_fetch_job, JobResult
+from api.services.dashboard import get_dashboard_stats
+from api.services.status import get_system_status
 
 logger = logging.getLogger(__name__)
+
+# Dashboard router
+dashboard_router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
 # Route subscription router
 routes_router = APIRouter(prefix="/api/routes", tags=["routes"])
@@ -35,6 +41,80 @@ sources_router = APIRouter(prefix="/api/sources", tags=["sources"])
 
 # Jobs router
 jobs_router = APIRouter(prefix="/api/jobs", tags=["jobs"])
+
+# Changes router
+changes_router = APIRouter(prefix="/api/changes", tags=["changes"])
+
+# Status router
+status_router = APIRouter(prefix="/api/status", tags=["status"])
+
+
+# ============================================================================
+# Dashboard Endpoint
+# ============================================================================
+
+@dashboard_router.get(
+    "",
+    status_code=status.HTTP_200_OK,
+    summary="Get dashboard statistics",
+    description="Retrieve dashboard statistics including route counts, source counts, recent changes, and source health. Requires authentication.",
+    responses={
+        200: {
+            "description": "Dashboard statistics",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "totalRoutes": 5,
+                        "totalSources": 10,
+                        "activeSources": 8,
+                        "changesLast7Days": 3,
+                        "changesLast30Days": 12,
+                        "recentChanges": [
+                            {
+                                "id": "123e4567-e89b-12d3-a456-426614174000",
+                                "sourceId": "123e4567-e89b-12d3-a456-426614174001",
+                                "sourceName": "Germany Student Visa",
+                                "route": "DE: Student",
+                                "detectedAt": "2025-01-27T10:00:00Z",
+                                "hasDiff": True,
+                                "diffLength": 150
+                            }
+                        ],
+                        "sourceHealth": [
+                            {
+                                "sourceId": "123e4567-e89b-12d3-a456-426614174001",
+                                "sourceName": "Germany Student Visa",
+                                "country": "DE",
+                                "visaType": "Student",
+                                "lastCheckedAt": "2025-01-27T10:00:00Z",
+                                "status": "healthy",
+                                "consecutiveFailures": 0,
+                                "lastError": None
+                            }
+                        ]
+                    }
+                }
+            }
+        },
+        401: {"description": "Unauthorized - Missing or invalid authentication token"}
+    }
+)
+async def get_dashboard(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+) -> dict:
+    """
+    Get dashboard statistics.
+    
+    Args:
+        current_user: Authenticated user (from dependency)
+        db: Database session
+        
+    Returns:
+        Dictionary with dashboard statistics
+    """
+    stats = await get_dashboard_stats(db)
+    return stats.to_dict()
 
 
 class PaginatedRouteResponse(BaseModel):
@@ -90,15 +170,23 @@ class PaginatedSourceResponse(BaseModel):
 async def list_routes(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     page_size: int = Query(20, ge=1, le=100, description="Number of items per page (max 100)"),
+    origin_country: Optional[str] = Query(None, description="Filter by origin country code (2 characters)"),
+    destination_country: Optional[str] = Query(None, description="Filter by destination country code (2 characters)"),
+    visa_type: Optional[str] = Query(None, description="Filter by visa type"),
+    is_active: Optional[bool] = Query(None, description="Filter by active status"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ) -> PaginatedRouteResponse:
     """
-    List all route subscriptions with pagination.
+    List all route subscriptions with pagination and optional filtering.
     
     Args:
         page: Page number (default: 1)
         page_size: Number of items per page (default: 20, max: 100)
+        origin_country: Filter by origin country code (optional)
+        destination_country: Filter by destination country code (optional)
+        visa_type: Filter by visa type (optional)
+        is_active: Filter by active status (optional)
         current_user: Authenticated user (from dependency)
         db: Database session
         
@@ -107,8 +195,15 @@ async def list_routes(
     """
     route_repo = RouteSubscriptionRepository(db)
     
-    # Get paginated routes
-    routes, total = await route_repo.list_paginated(page=page, page_size=page_size)
+    # Get paginated routes with filters
+    routes, total = await route_repo.list_paginated(
+        page=page,
+        page_size=page_size,
+        origin_country=origin_country,
+        destination_country=destination_country,
+        visa_type=visa_type,
+        is_active=is_active
+    )
     
     return PaginatedRouteResponse(
         items=[RouteSubscriptionResponse.model_validate(route) for route in routes],
@@ -280,7 +375,100 @@ async def get_route(
             }
         )
     
-    return RouteSubscriptionResponse.model_validate(route)
+        return RouteSubscriptionResponse.model_validate(route)
+
+
+@routes_router.put(
+    "/{route_id}",
+    response_model=RouteSubscriptionResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Update route subscription",
+    description="Update a route subscription. Requires authentication. Supports partial updates.",
+    responses={
+        200: {
+            "description": "Route subscription updated successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": "123e4567-e89b-12d3-a456-426614174000",
+                        "origin_country": "IN",
+                        "destination_country": "DE",
+                        "visa_type": "Student",
+                        "email": "user@example.com",
+                        "is_active": True,
+                        "created_at": "2025-01-27T10:00:00Z",
+                        "updated_at": "2025-01-27T11:00:00Z"
+                    }
+                }
+            }
+        },
+        400: {"description": "Bad Request - Validation error"},
+        401: {"description": "Unauthorized - Missing or invalid authentication token"},
+        404: {"description": "Not Found - Route subscription not found"}
+    }
+)
+async def update_route(
+    route_id: UUID,
+    route_data: RouteSubscriptionUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+) -> RouteSubscriptionResponse:
+    """
+    Update a route subscription.
+    
+    Args:
+        route_id: Route subscription UUID
+        route_data: Route subscription update data (partial updates supported)
+        current_user: Authenticated user (from dependency)
+        db: Database session
+        
+    Returns:
+        Updated route subscription
+        
+    Raises:
+        HTTPException: 404 if route not found, 400 for validation errors
+    """
+    route_repo = RouteSubscriptionRepository(db)
+    
+    # Get route to check if exists
+    route = await route_repo.get_by_id(route_id)
+    if not route:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": "ROUTE_NOT_FOUND",
+                "message": f"Route subscription with id {route_id} not found"
+            }
+        )
+    
+    # Prepare update data (only include non-None fields)
+    update_data = route_data.model_dump(exclude_unset=True)
+    
+    if not update_data:
+        # No fields to update, return existing route
+        return RouteSubscriptionResponse.model_validate(route)
+    
+    # Update route subscription
+    try:
+        updated_route = await route_repo.update(route_id, update_data)
+        logger.info(
+            f"Updated route subscription: {route_id}",
+            extra={
+                "route_id": str(route_id),
+                "updated_fields": list(update_data.keys()),
+                "user_id": str(current_user.id)
+            }
+        )
+        return RouteSubscriptionResponse.model_validate(updated_route)
+    except ValueError as e:
+        logger.error(f"Error updating route: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": "ROUTE_NOT_FOUND",
+                "message": str(e)
+            }
+        )
 
 
 @routes_router.delete(
@@ -909,4 +1097,453 @@ async def trigger_daily_fetch_job(
     )
     
     return response_data
+
+
+# ============================================================================
+# Status Endpoints
+# ============================================================================
+
+@status_router.get(
+    "",
+    status_code=status.HTTP_200_OK,
+    summary="Get system status",
+    description="Retrieve comprehensive system status including all sources with health information, statistics, and monitoring data. Requires authentication.",
+    responses={
+        200: {
+            "description": "System status data",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "sources": [
+                            {
+                                "id": "123e4567-e89b-12d3-a456-426614174000",
+                                "name": "Germany Student Visa Source",
+                                "country": "DE",
+                                "visa_type": "Student",
+                                "url": "https://example.com/policy",
+                                "fetch_type": "html",
+                                "check_frequency": "daily",
+                                "is_active": True,
+                                "last_checked_at": "2025-01-27T10:00:00Z",
+                                "last_change_detected_at": "2025-01-26T10:00:00Z",
+                                "status": "active",
+                                "consecutive_fetch_failures": 0,
+                                "last_fetch_error": None,
+                                "next_check_time": "2025-01-28T10:00:00Z"
+                            }
+                        ],
+                        "statistics": {
+                            "total_sources": 10,
+                            "healthy_sources": 8,
+                            "error_sources": 1,
+                            "stale_sources": 1,
+                            "never_checked_sources": 0
+                        },
+                        "last_daily_job_run": None
+                    }
+                }
+            }
+        },
+        401: {"description": "Unauthorized - Missing or invalid authentication token"}
+    }
+)
+async def get_status(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+) -> dict:
+    """
+    Get comprehensive system status.
+    
+    Args:
+        current_user: Authenticated user (from dependency)
+        db: Database session
+        
+    Returns:
+        Dictionary with system status data including sources, statistics, and monitoring info
+    """
+    status_data = await get_system_status(session=db)
+    return status_data
+
+
+# ============================================================================
+# Changes Endpoints
+# ============================================================================
+
+@changes_router.get(
+    "",
+    status_code=status.HTTP_200_OK,
+    summary="List policy changes",
+    description="Retrieve a paginated list of policy changes with optional filtering. Requires authentication.",
+    responses={
+        200: {
+            "description": "Successfully retrieved changes",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "items": [
+                            {
+                                "id": "123e4567-e89b-12d3-a456-426614174000",
+                                "detected_at": "2025-01-27T10:00:00Z",
+                                "source": {
+                                    "id": "456e7890-e89b-12d3-a456-426614174000",
+                                    "name": "Germany Student Visa Source",
+                                    "country": "DE",
+                                    "visa_type": "Student"
+                                },
+                                "route": {
+                                    "id": "789e0123-e89b-12d3-a456-426614174000",
+                                    "origin_country": "IN",
+                                    "destination_country": "DE",
+                                    "visa_type": "Student",
+                                    "display": "IN → DE, Student"
+                                },
+                                "summary": "Content changed",
+                                "is_new": True,
+                                "diff_length": 150
+                            }
+                        ],
+                        "total": 1,
+                        "page": 1,
+                        "page_size": 50,
+                        "pages": 1
+                    }
+                }
+            }
+        },
+        401: {"description": "Unauthorized - Missing or invalid authentication token"}
+    }
+)
+async def list_changes(
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(50, ge=1, le=100, description="Number of items per page (max 100)"),
+    route_id: Optional[str] = Query(None, description="Filter by route subscription UUID"),
+    source_id: Optional[str] = Query(None, description="Filter by source UUID"),
+    start_date: Optional[str] = Query(None, description="Filter by start date (ISO format)"),
+    end_date: Optional[str] = Query(None, description="Filter by end date (ISO format)"),
+    sort_by: str = Query("detected_at", description="Column to sort by"),
+    sort_order: str = Query("desc", description="Sort order (asc or desc)"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+) -> dict:
+    """
+    List all policy changes with pagination and optional filtering.
+    
+    Args:
+        page: Page number (default: 1)
+        page_size: Number of items per page (default: 50, max: 100)
+        route_id: Filter by route subscription UUID (optional)
+        source_id: Filter by source UUID (optional)
+        start_date: Filter by start date in ISO format (optional)
+        end_date: Filter by end date in ISO format (optional)
+        sort_by: Column to sort by (default: "detected_at")
+        sort_order: Sort order "asc" or "desc" (default: "desc")
+        current_user: Authenticated user (from dependency)
+        db: Database session
+        
+    Returns:
+        Dictionary with paginated changes and metadata
+    """
+    from datetime import datetime
+    from api.services.change import get_changes_with_details
+    
+    # Parse date strings
+    start_date_obj = None
+    end_date_obj = None
+    
+    if start_date:
+        try:
+            start_date_obj = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+        except ValueError:
+            logger.warning(f"Invalid start_date format: {start_date}")
+    
+    if end_date:
+        try:
+            end_date_obj = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+        except ValueError:
+            logger.warning(f"Invalid end_date format: {end_date}")
+    
+    # Get changes
+    result = await get_changes_with_details(
+        session=db,
+        route_id=route_id,
+        source_id=source_id,
+        start_date=start_date_obj,
+        end_date=end_date_obj,
+        page=page,
+        page_size=page_size,
+        sort_by=sort_by,
+        sort_order=sort_order
+    )
+    
+    return result
+
+
+@changes_router.get(
+    "/{change_id}",
+    status_code=status.HTTP_200_OK,
+    summary="Get change detail",
+    description="Retrieve detailed information for a specific policy change including diff, versions, and navigation. Requires authentication.",
+    responses={
+        200: {
+            "description": "Change detail found",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": "123e4567-e89b-12d3-a456-426614174000",
+                        "detected_at": "2025-01-27T10:00:00Z",
+                        "diff": "--- old\n+++ new\n...",
+                        "diff_length": 150,
+                        "source": {
+                            "id": "456e7890-e89b-12d3-a456-426614174000",
+                            "name": "Germany Student Visa Source",
+                            "url": "https://example.com/policy",
+                            "country": "DE",
+                            "visa_type": "Student"
+                        },
+                        "route": {
+                            "id": "789e0123-e89b-12d3-a456-426614174000",
+                            "origin_country": "IN",
+                            "destination_country": "DE",
+                            "visa_type": "Student",
+                            "display": "IN → DE, Student"
+                        },
+                        "old_version": {
+                            "id": "abc123...",
+                            "content_hash": "...",
+                            "raw_text": "...",
+                            "fetched_at": "2025-01-26T10:00:00Z",
+                            "content_length": 1000
+                        },
+                        "new_version": {
+                            "id": "def456...",
+                            "content_hash": "...",
+                            "raw_text": "...",
+                            "fetched_at": "2025-01-27T10:00:00Z",
+                            "content_length": 1200
+                        },
+                        "previous_change_id": "111e2222-e89b-12d3-a456-426614174000",
+                        "next_change_id": "333e4444-e89b-12d3-a456-426614174000"
+                    }
+                }
+            }
+        },
+        401: {"description": "Unauthorized - Missing or invalid authentication token"},
+        404: {"description": "Not Found - Change not found"}
+    }
+)
+async def get_change_detail(
+    change_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+) -> dict:
+    """
+    Get detailed information for a specific policy change.
+    
+    Args:
+        change_id: PolicyChange UUID
+        current_user: Authenticated user (from dependency)
+        db: Database session
+        
+    Returns:
+        Dictionary with detailed change information
+        
+    Raises:
+        HTTPException: 404 if change not found
+    """
+    from api.services.change import get_change_detail as get_change_detail_service
+    
+    change_detail = await get_change_detail_service(session=db, change_id=change_id)
+    
+    if not change_detail:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": "CHANGE_NOT_FOUND",
+                "message": f"Policy change with id {change_id} not found"
+            }
+        )
+    
+    return change_detail
+
+
+@changes_router.get(
+    "/{change_id}/download",
+    status_code=status.HTTP_200_OK,
+    summary="Download change diff",
+    description="Download the diff text for a specific policy change as a plain text file. Requires authentication.",
+    responses={
+        200: {
+            "description": "Diff text file",
+            "content": {
+                "text/plain": {}
+            }
+        },
+        401: {"description": "Unauthorized - Missing or invalid authentication token"},
+        404: {"description": "Not Found - Change not found"}
+    }
+)
+async def download_change_diff(
+    change_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Download the diff text for a policy change as a plain text file.
+    
+    Args:
+        change_id: PolicyChange UUID
+        current_user: Authenticated user (from dependency)
+        db: Database session
+        
+    Returns:
+        Plain text file response with diff content
+        
+    Raises:
+        HTTPException: 404 if change not found
+    """
+    from fastapi.responses import Response
+    from datetime import datetime
+    from api.services.change import get_change_detail as get_change_detail_service
+    
+    change_detail = await get_change_detail_service(session=db, change_id=change_id)
+    
+    if not change_detail:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": "CHANGE_NOT_FOUND",
+                "message": f"Policy change with id {change_id} not found"
+            }
+        )
+    
+    # Get diff text
+    diff_text = change_detail.get("diff", "")
+    source_name = change_detail.get("source", {}).get("name", "unknown")
+    detected_at = change_detail.get("detected_at", "")
+    
+    # Create filename with timestamp and source name
+    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    filename = f"diff_{source_name.replace(' ', '_')}_{timestamp}.txt"
+    
+    # Create response with diff text
+    return Response(
+        content=diff_text,
+        media_type="text/plain",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}"
+        }
+    )
+
+
+@changes_router.get(
+    "/export",
+    status_code=status.HTTP_200_OK,
+    summary="Export changes to CSV",
+    description="Export filtered policy changes to CSV format. Requires authentication.",
+    responses={
+        200: {
+            "description": "CSV file with changes",
+            "content": {
+                "text/csv": {}
+            }
+        },
+        401: {"description": "Unauthorized - Missing or invalid authentication token"}
+    }
+)
+async def export_changes(
+    route_id: Optional[str] = Query(None, description="Filter by route subscription UUID"),
+    source_id: Optional[str] = Query(None, description="Filter by source UUID"),
+    start_date: Optional[str] = Query(None, description="Filter by start date (ISO format)"),
+    end_date: Optional[str] = Query(None, description="Filter by end date (ISO format)"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Export policy changes to CSV format.
+    
+    Args:
+        route_id: Filter by route subscription UUID (optional)
+        source_id: Filter by source UUID (optional)
+        start_date: Filter by start date in ISO format (optional)
+        end_date: Filter by end date in ISO format (optional)
+        current_user: Authenticated user (from dependency)
+        db: Database session
+        
+    Returns:
+        CSV file response with all matching changes
+    """
+    from datetime import datetime
+    from fastapi.responses import Response
+    from api.services.change import get_changes_with_details
+    import csv
+    import io
+    
+    # Parse date strings
+    start_date_obj = None
+    end_date_obj = None
+    
+    if start_date:
+        try:
+            start_date_obj = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+        except ValueError:
+            logger.warning(f"Invalid start_date format: {start_date}")
+    
+    if end_date:
+        try:
+            end_date_obj = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+        except ValueError:
+            logger.warning(f"Invalid end_date format: {end_date}")
+    
+    # Get all changes (no pagination for export)
+    result = await get_changes_with_details(
+        session=db,
+        route_id=route_id,
+        source_id=source_id,
+        start_date=start_date_obj,
+        end_date=end_date_obj,
+        page=1,
+        page_size=10000,  # Large page size for export
+        sort_by="detected_at",
+        sort_order="desc"
+    )
+    
+    # Generate CSV
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Write header
+    writer.writerow([
+        "Detected At",
+        "Source Name",
+        "Source Country",
+        "Source Visa Type",
+        "Route",
+        "Change Summary",
+        "Diff Length"
+    ])
+    
+    # Write data rows
+    for change in result["items"]:
+        route_display = change["route"]["display"] if change["route"] else "No route"
+        writer.writerow([
+            change["detected_at"] or "",
+            change["source"]["name"],
+            change["source"]["country"],
+            change["source"]["visa_type"],
+            route_display,
+            change["summary"],
+            change["diff_length"]
+        ])
+    
+    # Create response
+    csv_content = output.getvalue()
+    output.close()
+    
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f"attachment; filename=policy_changes_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.csv"
+        }
+    )
 

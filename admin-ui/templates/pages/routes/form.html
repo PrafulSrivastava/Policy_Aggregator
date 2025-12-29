@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}{% if route %}Edit{% else %}Create{% endif %} Route Subscription - Policy Aggregator Admin{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <div class="bg-white shadow rounded-lg p-6">
+        <div class="mb-6">
+            <h1 class="text-2xl font-bold text-gray-900">
+                {% if route %}Edit{% else %}Create{% endif %} Route Subscription
+            </h1>
+            <p class="mt-1 text-sm text-gray-500">
+                {% if route %}
+                    Update route subscription details
+                {% else %}
+                    Create a new route subscription to monitor policy changes
+                {% endif %}
+            </p>
+        </div>
+
+        <!-- Error Message -->
+        <div id="errorMessage" class="hidden mb-4 rounded-md bg-red-50 p-4">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <h3 class="text-sm font-medium text-red-800" id="errorText"></h3>
+                </div>
+            </div>
+        </div>
+
+        <!-- Success Message -->
+        <div id="successMessage" class="hidden mb-4 rounded-md bg-green-50 p-4">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <h3 class="text-sm font-medium text-green-800">Route subscription saved successfully!</h3>
+                </div>
+            </div>
+        </div>
+
+        <form id="routeForm" class="space-y-6">
+            <input type="hidden" id="routeId" value="{% if route %}{{ route.id }}{% endif %}">
+
+            <!-- Origin Country -->
+            <div>
+                <label for="origin_country" class="block text-sm font-medium text-gray-700">Origin Country</label>
+                <select id="origin_country" name="origin_country" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="">Select origin country</option>
+                </select>
+                <p class="mt-1 text-sm text-red-600 hidden" id="origin_country_error"></p>
+            </div>
+
+            <!-- Destination Country -->
+            <div>
+                <label for="destination_country" class="block text-sm font-medium text-gray-700">Destination Country</label>
+                <select id="destination_country" name="destination_country" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="">Select destination country</option>
+                </select>
+                <p class="mt-1 text-sm text-red-600 hidden" id="destination_country_error"></p>
+            </div>
+
+            <!-- Visa Type -->
+            <div>
+                <label for="visa_type" class="block text-sm font-medium text-gray-700">Visa Type</label>
+                <select id="visa_type" name="visa_type" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="">Select visa type</option>
+                    <option value="Student">Student</option>
+                    <option value="Work">Work</option>
+                    <option value="Tourist">Tourist</option>
+                    <option value="Business">Business</option>
+                    <option value="Family">Family</option>
+                    <option value="Other">Other</option>
+                </select>
+                <p class="mt-1 text-sm text-red-600 hidden" id="visa_type_error"></p>
+            </div>
+
+            <!-- Email -->
+            <div>
+                <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
+                <input 
+                    type="email" 
+                    id="email" 
+                    name="email" 
+                    required 
+                    value="{% if route %}{{ route.email }}{% endif %}"
+                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="user@example.com"
+                >
+                <p class="mt-1 text-sm text-red-600 hidden" id="email_error"></p>
+            </div>
+
+            <!-- Is Active -->
+            <div class="flex items-center">
+                <input 
+                    type="checkbox" 
+                    id="is_active" 
+                    name="is_active" 
+                    {% if not route or route.is_active %}checked{% endif %}
+                    class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                >
+                <label for="is_active" class="ml-2 block text-sm text-gray-900">Active</label>
+            </div>
+
+            <!-- Form Actions -->
+            <div class="flex justify-end space-x-3">
+                <a href="/routes" class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    Cancel
+                </a>
+                <button 
+                    type="submit" 
+                    class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                >
+                    {% if route %}Update{% else %}Create{% endif %} Route
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+// Route data for pre-filling form in edit mode
+const routeData = {% if route %}{{ route|tojson }}{% else %}null{% endif %};
+</script>
+<script src="/static/js/countries.js"></script>
+<script src="/static/js/forms.js"></script>
+{% endblock %}
+

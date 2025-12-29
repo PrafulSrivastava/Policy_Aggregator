@@ -9,6 +9,16 @@ from sqlalchemy.pool import NullPool
 from api.database import Base, init_db, get_db
 from api.config import Settings
 
+# Import all models so they're registered with Base.metadata
+# This ensures Base.metadata.create_all() creates all tables
+# Import directly from model files to ensure they're registered
+from api.models.db.source import Source  # noqa: F401
+from api.models.db.policy_version import PolicyVersion  # noqa: F401
+from api.models.db.policy_change import PolicyChange  # noqa: F401
+from api.models.db.route_subscription import RouteSubscription  # noqa: F401
+from api.models.db.email_alert import EmailAlert  # noqa: F401
+from api.models.db.user import User  # noqa: F401
+
 
 # Test database URL (use in-memory SQLite for unit tests, or test PostgreSQL)
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"

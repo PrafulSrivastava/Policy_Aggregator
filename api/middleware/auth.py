@@ -1,7 +1,8 @@
 """Authentication middleware and dependencies."""
 
 import logging
-from fastapi import Depends, HTTPException, status, Request
+from fastapi import Depends, HTTPException, status, Request, Response
+from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from jose import JWTError
@@ -128,4 +129,55 @@ async def get_current_user(
         )
     
     return user
+
+
+class WebAuthRedirectException(Exception):
+    """Custom exception for web authentication redirects."""
+    pass
+
+
+async def get_current_user_web(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db)
+) -> User:
+    """
+    Dependency function to get the current authenticated user for web routes.
+    
+    For web requests (HTML), raises WebAuthRedirectException to redirect to /login if not authenticated.
+    For API requests (JSON), returns 401.
+    
+    Extracts JWT token from:
+    1. Authorization header (Bearer token) - primary method
+    2. Cookie (access_token) - fallback for web requests
+    
+    Args:
+        request: FastAPI request object
+        credentials: HTTPBearer credentials from Authorization header
+        db: Database session
+        
+    Returns:
+        User object for authenticated user
+        
+    Raises:
+        WebAuthRedirectException: For HTML requests if not authenticated (to be caught and redirected)
+        HTTPException: 401 for API requests if not authenticated
+    """
+    try:
+        return await get_current_user(request, credentials, db)
+    except HTTPException as e:
+        # Check if this is a web request (HTML) or API request (JSON)
+        accept_header = request.headers.get("accept", "")
+        is_html_request = (
+            "text/html" in accept_header or
+            accept_header == "*/*" or
+            (not accept_header and not request.url.path.startswith("/api"))
+        )
+        
+        if is_html_request and e.status_code == status.HTTP_401_UNAUTHORIZED:
+            # Raise custom exception for redirect (will be handled in route)
+            raise WebAuthRedirectException()
+        else:
+            # Return 401 for API requests
+            raise
 

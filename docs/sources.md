@@ -4,7 +4,7 @@ This document lists all configured policy sources for monitoring India → Germa
 
 ## Overview
 
-We monitor **5 official Germany immigration policy sources** covering Student and Work visa categories for the India → Germany route.
+We monitor **8 official Germany immigration policy sources** covering Student and Work visa categories for the India → Germany route.
 
 ## Source List
 
@@ -68,12 +68,48 @@ We monitor **5 official Germany immigration policy sources** covering Student an
 - **Check Frequency:** Daily
 - **Status:** Active
 
+### 6. Germany BAMF Work Visa Information
+
+- **Source Name:** Germany BAMF Work Visa Information
+- **Agency:** Bundesamt für Migration und Flüchtlinge (BAMF) - Federal Office for Migration and Refugees
+- **URL:** https://www.bamf.de/EN/Themen/MigrationAufenthalt/ZuwandererDrittstaaten/Migrathek/migrathek-node.html
+- **Visa Type:** Work
+- **Fetch Type:** HTML
+- **Fetcher:** `de_bamf_work.py`
+- **What it Monitors:** Official BAMF immigration procedures, residence permits, and work-related immigration information for India → Germany route
+- **Check Frequency:** Daily
+- **Status:** Active
+
+### 7. Germany DAAD Student Visa Information
+
+- **Source Name:** Germany DAAD Student Visa Information
+- **Agency:** Deutscher Akademischer Austauschdienst (DAAD) - German Academic Exchange Service
+- **URL:** https://www.daad.de/en/study-and-research-in-germany/plan-your-studies/entry-and-residence/
+- **Visa Type:** Student
+- **Fetch Type:** HTML
+- **Fetcher:** `de_daad_student.py`
+- **What it Monitors:** Official DAAD student visa requirements, entry requirements, and residence permits for students for India → Germany route
+- **Check Frequency:** Daily
+- **Status:** Active
+
+### 8. Germany Bundesagentur für Arbeit Work Visa Information
+
+- **Source Name:** Germany Bundesagentur für Arbeit Work Visa Information
+- **Agency:** Bundesagentur für Arbeit (BA) - Federal Employment Agency
+- **URL:** https://www.arbeitsagentur.de/en/working-in-germany
+- **Visa Type:** Work
+- **Fetch Type:** HTML
+- **Fetcher:** `de_arbeitsagentur_work.py`
+- **What it Monitors:** Official Federal Employment Agency work permit requirements and employment-related immigration information for India → Germany route
+- **Check Frequency:** Daily
+- **Status:** Active
+
 ## Summary
 
-- **Total Sources:** 5
-- **Student Visa Sources:** 2
-- **Work Visa Sources:** 3
-- **HTML Sources:** 5
+- **Total Sources:** 8
+- **Student Visa Sources:** 3
+- **Work Visa Sources:** 5
+- **HTML Sources:** 8
 - **PDF Sources:** 0
 - **Route:** India → Germany
 

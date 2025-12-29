@@ -1,0 +1,343 @@
+{% extends "base.html" %}
+
+{% block title %}Change Detail - Policy Aggregator Admin{% endblock %}
+
+{% block extra_head %}
+<style>
+    .diff-container {
+        font-family: 'Courier New', monospace;
+        font-size: 0.875rem;
+        line-height: 1.5;
+        background-color: #1f2937;
+        color: #f3f4f6;
+        border-radius: 0.5rem;
+        overflow-x: auto;
+    }
+    .diff-line {
+        padding: 0.25rem 0.75rem;
+        white-space: pre;
+    }
+    .diff-line.added {
+        background-color: #065f46;
+        color: #d1fae5;
+    }
+    .diff-line.removed {
+        background-color: #7f1d1d;
+        color: #fecaca;
+    }
+    .diff-line.context {
+        background-color: #374151;
+        color: #d1d5db;
+    }
+    .diff-line-number {
+        display: inline-block;
+        width: 4rem;
+        text-align: right;
+        padding-right: 1rem;
+        color: #9ca3af;
+        user-select: none;
+    }
+    .version-container {
+        font-family: 'Courier New', monospace;
+        font-size: 0.875rem;
+        line-height: 1.5;
+        background-color: #f9fafb;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.5rem;
+        overflow-x: auto;
+        max-height: 600px;
+        overflow-y: auto;
+    }
+    .version-line {
+        padding: 0.25rem 0.75rem;
+        white-space: pre;
+        border-left: 3px solid transparent;
+    }
+    .version-line-number {
+        display: inline-block;
+        width: 4rem;
+        text-align: right;
+        padding-right: 1rem;
+        color: #9ca3af;
+        user-select: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header with Navigation -->
+    <div class="flex justify-between items-center">
+        <h1 class="text-2xl font-bold text-gray-900">Change Detail</h1>
+        <div class="flex space-x-3">
+            {% if change.previous_change_id %}
+            <a href="/changes/{{ change.previous_change_id }}" class="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500">
+                ← Previous
+            </a>
+            {% else %}
+            <span class="bg-gray-300 text-gray-500 px-4 py-2 rounded-md cursor-not-allowed">
+                ← Previous
+            </span>
+            {% endif %}
+            {% if change.next_change_id %}
+            <a href="/changes/{{ change.next_change_id }}" class="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500">
+                Next →
+            </a>
+            {% else %}
+            <span class="bg-gray-300 text-gray-500 px-4 py-2 rounded-md cursor-not-allowed">
+                Next →
+            </span>
+            {% endif %}
+            <a href="/changes" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                Back to Change History
+            </a>
+            <a href="/api/changes/{{ change.id }}/download" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500">
+                Download Diff
+            </a>
+        </div>
+    </div>
+
+    <!-- Change Metadata -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Change Information</h2>
+        <dl class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+                <dt class="text-sm font-medium text-gray-500">Detected At</dt>
+                <dd class="mt-1 text-sm text-gray-900">
+                    {% if change.detected_at %}
+                        {{ change.detected_at[:19]|replace('T', ' ') }}
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </dd>
+            </div>
+            <div>
+                <dt class="text-sm font-medium text-gray-500">Diff Length</dt>
+                <dd class="mt-1 text-sm text-gray-900">{{ change.diff_length }} characters</dd>
+            </div>
+            {% if change.route %}
+            <div>
+                <dt class="text-sm font-medium text-gray-500">Route</dt>
+                <dd class="mt-1 text-sm text-gray-900">{{ change.route.display }}</dd>
+            </div>
+            {% endif %}
+            <div>
+                <dt class="text-sm font-medium text-gray-500">Source</dt>
+                <dd class="mt-1 text-sm text-gray-900">
+                    <a href="{{ change.source.url }}" target="_blank" class="text-indigo-600 hover:text-indigo-900">
+                        {{ change.source.name }}
+                    </a>
+                </dd>
+            </div>
+            {% if change.alert_sent_at %}
+            <div>
+                <dt class="text-sm font-medium text-gray-500">Alert Sent At</dt>
+                <dd class="mt-1 text-sm text-gray-900">
+                    {{ change.alert_sent_at[:19]|replace('T', ' ') }}
+                </dd>
+            </div>
+            {% endif %}
+        </dl>
+    </div>
+
+    <!-- Diff Display -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-lg font-semibold text-gray-900">Diff</h2>
+            <span class="text-sm text-gray-500" id="diffLineCount"></span>
+        </div>
+        <div class="diff-container" id="diffContainer" style="max-height: 800px; overflow-y: auto;">
+            <div id="diffContent">
+                <!-- Diff will be formatted by JavaScript -->
+            </div>
+        </div>
+        {% if change.diff_length > 10000 %}
+        <div class="mt-4 text-center">
+            <button id="showFullDiffBtn" onclick="showFullDiff()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                Show Full Diff
+            </button>
+            <p class="mt-2 text-sm text-gray-500">Large diff detected. Showing first 1000 lines. Click to show full diff.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Version Display (Collapsible) -->
+    {% if change.old_version or change.new_version %}
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Policy Versions</h2>
+        
+        <div class="space-y-4">
+            {% if change.old_version %}
+            <div>
+                <button onclick="toggleVersion('oldVersion')" class="w-full flex justify-between items-center px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-md text-left">
+                    <span class="font-medium text-gray-900">
+                        Old Version
+                        <span class="text-sm text-gray-500">({{ change.old_version.content_length }} chars, fetched {{ change.old_version.fetched_at[:19]|replace('T', ' ') }})</span>
+                    </span>
+                    <span class="text-gray-500" id="oldVersionToggle">▼</span>
+                </button>
+                <div id="oldVersion" class="hidden mt-2 version-container">
+                    <div id="oldVersionContent">
+                        <!-- Old version content will be formatted by JavaScript -->
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            {% if change.new_version %}
+            <div>
+                <button onclick="toggleVersion('newVersion')" class="w-full flex justify-between items-center px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-md text-left">
+                    <span class="font-medium text-gray-900">
+                        New Version
+                        <span class="text-sm text-gray-500">({{ change.new_version.content_length }} chars, fetched {{ change.new_version.fetched_at[:19]|replace('T', ' ') }})</span>
+                    </span>
+                    <span class="text-gray-500" id="newVersionToggle">▼</span>
+                </button>
+                <div id="newVersion" class="hidden mt-2 version-container">
+                    <div id="newVersionContent">
+                        <!-- New version content will be formatted by JavaScript -->
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+// Format diff for display
+function formatDiff(diffText, maxLines = null) {
+    if (!diffText) return;
+    
+    const lines = diffText.split('\n');
+    const container = document.getElementById('diffContent');
+    container.innerHTML = '';
+    
+    // Update line count
+    const lineCountEl = document.getElementById('diffLineCount');
+    if (lineCountEl) {
+        lineCountEl.textContent = `${lines.length} lines`;
+    }
+    
+    // Limit lines if maxLines is specified
+    const displayLines = maxLines ? lines.slice(0, maxLines) : lines;
+    const isTruncated = maxLines && lines.length > maxLines;
+    
+    let lineNumber = 1;
+    displayLines.forEach((line, index) => {
+        const lineDiv = document.createElement('div');
+        lineDiv.className = 'diff-line';
+        
+        // Determine line type based on unified diff format
+        if (line.startsWith('+') && !line.startsWith('+++')) {
+            lineDiv.classList.add('added');
+        } else if (line.startsWith('-') && !line.startsWith('---')) {
+            lineDiv.classList.add('removed');
+        } else {
+            lineDiv.classList.add('context');
+        }
+        
+        // Add line number
+        const lineNumSpan = document.createElement('span');
+        lineNumSpan.className = 'diff-line-number';
+        lineNumSpan.textContent = lineNumber++;
+        lineDiv.appendChild(lineNumSpan);
+        
+        // Add line content (escape HTML)
+        const contentSpan = document.createElement('span');
+        contentSpan.textContent = line;
+        lineDiv.appendChild(contentSpan);
+        
+        container.appendChild(lineDiv);
+    });
+    
+    // Add truncation message if needed
+    if (isTruncated) {
+        const truncationDiv = document.createElement('div');
+        truncationDiv.className = 'diff-line context';
+        truncationDiv.style.textAlign = 'center';
+        truncationDiv.style.padding = '1rem';
+        truncationDiv.style.fontStyle = 'italic';
+        truncationDiv.textContent = `... (showing first ${maxLines} of ${lines.length} lines) ...`;
+        container.appendChild(truncationDiv);
+    }
+}
+
+// Show full diff
+function showFullDiff() {
+    const diffText = {{ change.diff|tojson }};
+    formatDiff(diffText);
+    document.getElementById('showFullDiffBtn').style.display = 'none';
+    const btnContainer = document.getElementById('showFullDiffBtn').parentElement;
+    if (btnContainer) {
+        btnContainer.style.display = 'none';
+    }
+}
+
+// Format version text for display
+function formatVersion(versionText, containerId) {
+    if (!versionText) return;
+    
+    const lines = versionText.split('\n');
+    const container = document.getElementById(containerId);
+    container.innerHTML = '';
+    
+    lines.forEach((line, index) => {
+        const lineDiv = document.createElement('div');
+        lineDiv.className = 'version-line';
+        
+        // Add line number
+        const lineNumSpan = document.createElement('span');
+        lineNumSpan.className = 'version-line-number';
+        lineNumSpan.textContent = index + 1;
+        lineDiv.appendChild(lineNumSpan);
+        
+        // Add line content (escape HTML)
+        const contentSpan = document.createElement('span');
+        contentSpan.textContent = line;
+        lineDiv.appendChild(contentSpan);
+        
+        container.appendChild(lineDiv);
+    });
+}
+
+// Toggle version display
+function toggleVersion(versionId) {
+    const versionDiv = document.getElementById(versionId);
+    const toggleSpan = document.getElementById(versionId + 'Toggle');
+    
+    if (versionDiv.classList.contains('hidden')) {
+        versionDiv.classList.remove('hidden');
+        toggleSpan.textContent = '▲';
+    } else {
+        versionDiv.classList.add('hidden');
+        toggleSpan.textContent = '▼';
+    }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Format diff (truncate if very large)
+    const diffText = {{ change.diff|tojson }};
+    const diffLength = {{ change.diff_length }};
+    if (diffLength > 10000) {
+        formatDiff(diffText, 1000);  // Show first 1000 lines
+    } else {
+        formatDiff(diffText);
+    }
+    
+    // Format versions if they exist
+    {% if change.old_version %}
+    const oldVersionText = {{ change.old_version.raw_text|tojson }};
+    formatVersion(oldVersionText, 'oldVersionContent');
+    {% endif %}
+    
+    {% if change.new_version %}
+    const newVersionText = {{ change.new_version.raw_text|tojson }};
+    formatVersion(newVersionText, 'newVersionContent');
+    {% endif %}
+});
+</script>
+{% endblock %}
+

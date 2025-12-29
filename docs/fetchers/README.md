@@ -36,8 +36,11 @@ Fetcher files must follow this naming pattern:
 
 **Examples:**
 - `de_bmi_student.py` - Germany BMI Student visa fetcher
-- `de_bmi_workvisa.py` - Germany BMI Work visa fetcher
-- `us_dhs_work.py` - US DHS Work visa fetcher
+- `de_bmi_work.py` - Germany BMI Work visa fetcher
+- `uk_home_office_student.py` - UK Home Office Student visa fetcher
+- `uk_home_office_work.py` - UK Home Office Skilled Worker visa fetcher
+- `ca_ircc_student.py` - Canada IRCC Study Permit fetcher
+- `ca_ircc_work.py` - Canada IRCC Work Permit fetcher
 
 **Rules:**
 - `country`: 2-letter ISO country code (lowercase)
@@ -348,7 +351,52 @@ register_fetcher(
 
 ## Example Fetchers
 
+### Using HTML Fetcher Utilities
+
+For HTML sources, you can use the `fetch_html()` utility function which handles retry logic, error handling, and metadata extraction:
+
+```python
+"""
+UK Home Office Student visa policy fetcher.
+"""
+
+import logging
+from typing import Dict, Any
+from fetchers.base import FetchResult
+from fetchers.html_fetcher import fetch_html
+
+logger = logging.getLogger(__name__)
+
+SOURCE_TYPE = "html"
+
+def fetch(url: str, metadata: Dict[str, Any]) -> FetchResult:
+    """
+    Fetch student visa policy content from UK Home Office website.
+    """
+    # Use the HTML fetcher utilities
+    result = fetch_html(url, metadata)
+    
+    # Add source-specific metadata if needed
+    if result.success:
+        result.metadata['source'] = 'UK Home Office'
+        result.metadata['agency'] = 'UKVI'
+        result.metadata['visa_category'] = 'Student'
+        result.metadata['route'] = 'India → UK'
+        logger.info(f"Successfully fetched student visa content from {url}")
+    else:
+        logger.error(f"Failed to fetch student visa content from {url}: {result.error_message}")
+    
+    return result
+```
+
+### Complete Examples
+
 See `fetchers/example_template.py` for a complete template with examples for both HTML and PDF fetching.
+
+**Reference Implementations:**
+- `fetchers/de_bmi_student.py` - Germany BMI Student visa (HTML)
+- `fetchers/uk_home_office_student.py` - UK Home Office Student visa (HTML)
+- `fetchers/ca_ircc_student.py` - Canada IRCC Study Permit (HTML)
 
 ## Related Documentation
 
