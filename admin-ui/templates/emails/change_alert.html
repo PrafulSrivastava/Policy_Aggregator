@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Policy Change Detected</title>
+    <style>
+        /* Inline styles for email client compatibility */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333333;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+        }
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+        }
+        .email-header {
+            background-color: #2563eb;
+            color: #ffffff;
+            padding: 24px;
+            text-align: center;
+        }
+        .email-header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .email-body {
+            padding: 24px;
+        }
+        .route-info {
+            background-color: #f3f4f6;
+            border-left: 4px solid #2563eb;
+            padding: 16px;
+            margin-bottom: 24px;
+            border-radius: 4px;
+        }
+        .route-info h2 {
+            margin: 0 0 8px 0;
+            font-size: 18px;
+            font-weight: 600;
+            color: #1f2937;
+        }
+        .route-info p {
+            margin: 4px 0;
+            color: #6b7280;
+            font-size: 14px;
+        }
+        .source-attribution {
+            background-color: #fef3c7;
+            border: 1px solid #fbbf24;
+            border-radius: 4px;
+            padding: 16px;
+            margin-bottom: 24px;
+        }
+        .source-attribution h3 {
+            margin: 0 0 8px 0;
+            font-size: 16px;
+            font-weight: 600;
+            color: #92400e;
+        }
+        .source-attribution p {
+            margin: 4px 0;
+            color: #78350f;
+            font-size: 14px;
+        }
+        .source-attribution a {
+            color: #2563eb;
+            text-decoration: none;
+        }
+        .source-attribution a:hover {
+            text-decoration: underline;
+        }
+        .timestamp {
+            color: #6b7280;
+            font-size: 14px;
+            margin-bottom: 24px;
+        }
+        .diff-preview {
+            background-color: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+            padding: 16px;
+            margin-bottom: 24px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .diff-preview-header {
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #374151;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        .cta-button {
+            display: inline-block;
+            background-color: #2563eb;
+            color: #ffffff;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            text-align: center;
+            margin: 24px 0;
+        }
+        .cta-button:hover {
+            background-color: #1d4ed8;
+        }
+        .disclaimer {
+            background-color: #fef2f2;
+            border-left: 4px solid #ef4444;
+            padding: 16px;
+            margin-top: 24px;
+            border-radius: 4px;
+        }
+        .disclaimer p {
+            margin: 0;
+            color: #991b1b;
+            font-size: 13px;
+            font-style: italic;
+        }
+        .email-footer {
+            background-color: #f9fafb;
+            padding: 16px 24px;
+            text-align: center;
+            color: #6b7280;
+            font-size: 12px;
+            border-top: 1px solid #e5e7eb;
+        }
+        @media only screen and (max-width: 600px) {
+            .email-body {
+                padding: 16px;
+            }
+            .email-header {
+                padding: 16px;
+            }
+            .email-header h1 {
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="email-header">
+            <h1>Policy Change Detected</h1>
+        </div>
+        
+        <div class="email-body">
+            <!-- Route Information -->
+            <div class="route-info">
+                <h2>{{ route.origin_country }} → {{ route.destination_country }}, {{ route.visa_type }} Visa</h2>
+                <p>We detected a change in the policy you're monitoring.</p>
+            </div>
+            
+            <!-- Source Attribution -->
+            <div class="source-attribution">
+                <h3>Source Information</h3>
+                <p><strong>Source:</strong> {{ source.name }}</p>
+                <p><strong>URL:</strong> <a href="{{ source.url }}" target="_blank">{{ source.url }}</a></p>
+            </div>
+            
+            <!-- Timestamp -->
+            <div class="timestamp">
+                <strong>Detected:</strong> {{ detected_at.strftime('%B %d, %Y at %I:%M %p UTC') }}
+            </div>
+            
+            <!-- Diff Preview -->
+            <div class="diff-preview">
+                <div class="diff-preview-header">Change Preview:</div>
+                {{ diff_preview }}
+            </div>
+            
+            <!-- Call to Action -->
+            <div style="text-align: center;">
+                <a href="{{ admin_ui_url }}/changes/{{ change_id }}" class="cta-button">View Full Diff</a>
+            </div>
+            
+            <!-- Disclaimer -->
+            <div class="disclaimer">
+                <p><strong>Disclaimer:</strong> This is information, not legal advice. Please consult with a qualified immigration attorney for legal guidance.</p>
+            </div>
+        </div>
+        
+        <div class="email-footer">
+            <p>This is an automated notification from Policy Aggregator.</p>
+            <p>You are receiving this because you subscribed to monitor this route.</p>
+        </div>
+    </div>
+</body>
+</html>
+

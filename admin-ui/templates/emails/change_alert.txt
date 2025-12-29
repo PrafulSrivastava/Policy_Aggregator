@@ -1,0 +1,31 @@
+POLICY CHANGE DETECTED
+======================
+
+Route: {{ route.origin_country }} → {{ route.destination_country }}, {{ route.visa_type }} Visa
+
+We detected a change in the policy you're monitoring.
+
+SOURCE INFORMATION
+------------------
+Source: {{ source.name }}
+URL: {{ source.url }}
+
+Detected: {{ detected_at.strftime('%B %d, %Y at %I:%M %p UTC') }}
+
+CHANGE PREVIEW
+--------------
+{{ diff_preview }}
+
+VIEW FULL DIFF
+--------------
+Visit the following URL to see the complete change details:
+{{ admin_ui_url }}/changes/{{ change_id }}
+
+DISCLAIMER
+----------
+This is information, not legal advice. Please consult with a qualified immigration attorney for legal guidance.
+
+---
+This is an automated notification from Policy Aggregator.
+You are receiving this because you subscribed to monitor this route.
+

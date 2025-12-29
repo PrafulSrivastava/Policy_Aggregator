@@ -1,0 +1,47 @@
+# FastAPI and ASGI server
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+
+# Database
+sqlalchemy>=2.0.0
+asyncpg>=0.29.0  # PostgreSQL async driver
+alembic>=1.12.0
+
+# Validation and serialization
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+email-validator>=2.0.0  # Required for Pydantic EmailStr validation
+
+# Environment variables
+python-dotenv>=1.0.0
+
+# Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+aiosqlite>=0.19.0  # For in-memory SQLite tests
+responses>=0.24.0  # For mocking HTTP requests in tests
+
+# Authentication
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+
+# HTTP client (for fetchers)
+requests>=2.31.0
+httpx>=0.25.0
+aiohttp>=3.9.0
+
+# HTML parsing (for fetchers)
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+
+# PDF processing (for fetchers)
+PyPDF2>=3.0.0
+
+# Email (for future use)
+resend>=0.6.0
+jinja2>=3.1.0  # For email template rendering
+
+# Text processing
+python-docx>=1.1.0  # For Word documents if needed
+
