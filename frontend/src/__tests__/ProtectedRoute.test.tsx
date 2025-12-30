@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { BrowserRouter } from 'react-router-dom';
+import { HashRouter } from 'react-router-dom';
 import ProtectedRoute from '../components/ProtectedRoute';
 import { AuthProvider } from '../contexts/AuthContext';
 import { getToken } from '../services/api';
@@ -31,11 +31,11 @@ vi.mock('../services/api', () => ({
 }));
 
 const TestWrapper = ({ children }: { children: React.ReactNode }) => (
-  <BrowserRouter>
+  <HashRouter>
     <AuthProvider>
       {children}
     </AuthProvider>
-  </BrowserRouter>
+  </HashRouter>
 );
 
 describe('ProtectedRoute', () => {

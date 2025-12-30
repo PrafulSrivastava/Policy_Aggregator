@@ -11,6 +11,7 @@ interface PaginationProps {
   totalItems: number;
   pageSize: number;
   onPageChange: (page: number) => void;
+  itemLabel?: string; // Optional label for items (default: "routes")
 }
 
 const Pagination: React.FC<PaginationProps> = ({
@@ -19,6 +20,7 @@ const Pagination: React.FC<PaginationProps> = ({
   totalItems,
   pageSize,
   onPageChange,
+  itemLabel = 'routes',
 }) => {
   // Calculate range of items being displayed
   const startItem = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1;
@@ -66,7 +68,7 @@ const Pagination: React.FC<PaginationProps> = ({
     return (
       <div className="flex items-center justify-between py-4 border-t border-foreground">
         <p className="text-sm text-mutedForeground font-mono uppercase tracking-widest">
-          Showing {startItem}-{endItem} of {totalItems} routes
+          Showing {startItem}-{endItem} of {totalItems} {itemLabel}
         </p>
       </div>
     );
@@ -75,7 +77,7 @@ const Pagination: React.FC<PaginationProps> = ({
   return (
     <div className="flex items-center justify-between py-4 border-t-2 border-foreground">
       <p className="text-sm text-mutedForeground font-mono uppercase tracking-widest">
-        Showing {startItem}-{endItem} of {totalItems} routes
+        Showing {startItem}-{endItem} of {totalItems} {itemLabel}
       </p>
       
       <div className="flex items-center space-x-2">

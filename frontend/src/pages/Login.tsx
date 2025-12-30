@@ -1,21 +1,24 @@
 /**
  * Login Page Component
- * Handles user authentication with email/password
+ * Handles user authentication with User ID (Email) and Access Key (Password)
  */
 
 import React, { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import Alert from '../components/Alert';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 /**
  * Login Page Component
  */
 const Login: React.FC = () => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [userId, setUserId] = useState('');
+  const [accessKey, setAccessKey] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<{ userId?: string; accessKey?: string }>({});
   
   const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
@@ -30,44 +33,59 @@ const Login: React.FC = () => {
   }, [isAuthenticated, navigate, searchParams]);
 
   /**
+   * Validate form fields
+   */
+  const validateForm = (): boolean => {
+    const errors: { userId?: string; accessKey?: string } = {};
+
+    if (!userId.trim()) {
+      errors.userId = 'User ID is required';
+    }
+
+    if (!accessKey) {
+      errors.accessKey = 'Access Key is required';
+    }
+
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  /**
    * Handle form submission
    */
   const handleSubmit = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     setError(null);
+    setValidationErrors({});
+
+    // Validate form
+    if (!validateForm()) {
+      setError('Missing Credentials');
+      return;
+    }
+
     setLoading(true);
 
-    // Validation
-    if (!username.trim()) {
-      setError('Username is required');
-      setLoading(false);
-      return;
-    }
-
-    if (!password) {
-      setError('Password is required');
-      setLoading(false);
-      return;
-    }
-
-    // Optional: Validate email format (if username is expected to be email)
-    // if (!validateEmail(username)) {
-    //   setError('Please enter a valid email address');
-    //   setLoading(false);
-    //   return;
-    // }
-
     // Attempt login
-    const result = await login(username, password);
+    const result = await login(userId.trim(), accessKey);
 
     if (result.success) {
-      // Redirect to intended page or dashboard
+      // Clear any errors
+      setError(null);
+      // Redirect to dashboard (HashRouter will handle /#/dashboard automatically)
       const redirectTo = searchParams.get('redirect') || '/';
       navigate(redirectTo, { replace: true });
     } else {
-      setError(result.error || 'Login failed. Please check your credentials.');
+      setError(result.error || 'Access Denied');
       setLoading(false);
     }
+  };
+
+  /**
+   * Check if form can be submitted
+   */
+  const canSubmit = (): boolean => {
+    return userId.trim().length > 0 && accessKey.length > 0 && !loading;
   };
 
   return (
@@ -80,57 +98,91 @@ const Login: React.FC = () => {
           </h1>
 
           {error && (
-            <div className="mb-6 p-4 bg-foreground text-background border-2 border-foreground">
-              <p className="text-sm font-medium">{error}</p>
-            </div>
+            <Alert
+              type="error"
+              message={error}
+              onClose={() => setError(null)}
+            />
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Username/Email Input */}
-            <div>
-              <label htmlFor="username" className="block text-sm font-medium mb-2 uppercase tracking-widest">
-                Username
-              </label>
-              <input
-                id="username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="input"
-                placeholder="Enter your username"
-                disabled={loading}
-                autoComplete="username"
-                required
-              />
-            </div>
+          {loading ? (
+            <LoadingSpinner message="Initializing Session..." />
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* User ID Input */}
+              <div>
+                <label htmlFor="userId" className="block text-sm font-medium mb-2 uppercase tracking-widest">
+                  User ID
+                </label>
+                <input
+                  id="userId"
+                  type="text"
+                  value={userId}
+                  onChange={(e) => {
+                    setUserId(e.target.value);
+                    // Clear validation error when user types
+                    if (validationErrors.userId) {
+                      setValidationErrors({ ...validationErrors, userId: undefined });
+                    }
+                    // Clear general error when user types
+                    if (error) {
+                      setError(null);
+                    }
+                  }}
+                  className={`input ${validationErrors.userId ? 'border-red-500' : ''}`}
+                  placeholder="Enter your User ID"
+                  disabled={loading}
+                  autoComplete="username"
+                />
+                {validationErrors.userId && (
+                  <p className="mt-1 text-sm text-red-500" role="alert">
+                    {validationErrors.userId}
+                  </p>
+                )}
+              </div>
 
-            {/* Password Input */}
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium mb-2 uppercase tracking-widest">
-                Password
-              </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="input"
-                placeholder="Enter your password"
-                disabled={loading}
-                autoComplete="current-password"
-                required
-              />
-            </div>
+              {/* Access Key Input */}
+              <div>
+                <label htmlFor="accessKey" className="block text-sm font-medium mb-2 uppercase tracking-widest">
+                  Access Key
+                </label>
+                <input
+                  id="accessKey"
+                  type="password"
+                  value={accessKey}
+                  onChange={(e) => {
+                    setAccessKey(e.target.value);
+                    // Clear validation error when user types
+                    if (validationErrors.accessKey) {
+                      setValidationErrors({ ...validationErrors, accessKey: undefined });
+                    }
+                    // Clear general error when user types
+                    if (error) {
+                      setError(null);
+                    }
+                  }}
+                  className={`input ${validationErrors.accessKey ? 'border-red-500' : ''}`}
+                  placeholder="Enter your Access Key"
+                  disabled={loading}
+                  autoComplete="current-password"
+                />
+                {validationErrors.accessKey && (
+                  <p className="mt-1 text-sm text-red-500" role="alert">
+                    {validationErrors.accessKey}
+                  </p>
+                )}
+              </div>
 
-            {/* Submit Button */}
-            <button
-              type="submit"
-              className="btn-primary w-full"
-              disabled={loading}
-            >
-              {loading ? 'Logging in...' : 'Login'}
-            </button>
-          </form>
+              {/* Submit Button */}
+              <button
+                type="submit"
+                className="btn-primary w-full"
+                disabled={!canSubmit()}
+              >
+                Initialize Session
+              </button>
+            </form>
+          )}
 
           {/* OAuth Section (Placeholder for future implementation) */}
           {/* 

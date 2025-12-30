@@ -46,3 +46,4 @@ def downgrade() -> None:
                     nullable=False,
                     existing_comment='Bcrypt hashed password')
 
+

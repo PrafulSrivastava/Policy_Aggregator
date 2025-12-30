@@ -48,14 +48,25 @@ interface AuthProviderProps {
  * Manages authentication state and provides auth methods to children
  */
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  // Check for mock mode from environment variable
+  const mockMode = import.meta.env.VITE_MOCK_AUTH === 'true' || import.meta.env.VITE_MOCK_AUTH === '1';
+  
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(mockMode);
+  const [user, setUser] = useState<User | null>(mockMode ? { id: 'mock-user', username: 'demo', is_active: true } : null);
+  const [loading, setLoading] = useState<boolean>(!mockMode);
 
   /**
    * Check if user is authenticated by validating token
    */
   const checkAuth = async (): Promise<void> => {
+    // In mock mode, skip authentication check
+    if (mockMode) {
+      setIsAuthenticated(true);
+      setUser({ id: 'mock-user', username: 'demo', is_active: true });
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     
     try {
@@ -97,6 +108,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    * This will be set by the auth service after successful login
    */
   const login = async (username: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    // In mock mode, always succeed
+    if (mockMode) {
+      setIsAuthenticated(true);
+      setUser({ id: 'mock-user', username: username || 'demo', is_active: true });
+      return { success: true };
+    }
+
     // Import here to avoid circular dependency
     const { login: authLogin } = await import('../services/auth');
     const result = await authLogin(username, password);
@@ -113,6 +131,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    * Logout function
    */
   const handleLogout = async (): Promise<void> => {
+    // In mock mode, just reset state
+    if (mockMode) {
+      setIsAuthenticated(false);
+      setUser(null);
+      return;
+    }
+
     await authLogout();
     setIsAuthenticated(false);
     setUser(null);
@@ -121,6 +146,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Check authentication status on mount
   useEffect(() => {
     checkAuth();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const value: AuthContextType = {

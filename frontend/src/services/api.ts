@@ -129,3 +129,11 @@ export const getErrorMessage = (error: unknown): string => {
   return 'An unexpected error occurred';
 };
 
+/**
+ * Get system status
+ */
+export const getStatus = async (): Promise<unknown> => {
+  const response = await apiClient.get('/api/status');
+  return response.data;
+};
+

@@ -148,3 +148,34 @@ export const createRoute = async (
   }
 };
 
+/**
+ * Update an existing route subscription
+ * 
+ * @param routeId - Route subscription ID to update
+ * @param routeData - Route data to update
+ * @returns Updated RouteSubscription
+ * @throws Error if API call fails
+ */
+export const updateRoute = async (
+  routeId: string,
+  routeData: CreateRouteRequest
+): Promise<RouteSubscription> => {
+  try {
+    const response = await apiClient.put<RouteSubscription>(`/api/routes/${routeId}`, {
+      origin_country: routeData.originCountry,
+      destination_country: routeData.destinationCountry,
+      visa_type: routeData.visaType,
+      email: routeData.email,
+    });
+
+    return response.data;
+  } catch (error) {
+    if (isApiError(error)) {
+      const errorMessage = error.response?.data?.error?.message || 'Failed to update route';
+      throw new Error(errorMessage);
+    }
+
+    throw new Error(getErrorMessage(error));
+  }
+};
+

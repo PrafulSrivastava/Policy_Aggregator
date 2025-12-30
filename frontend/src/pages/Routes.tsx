@@ -7,10 +7,13 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { getRoutes } from '../services/routes';
 import type { RouteSubscription, PaginatedRoutesResponse } from '../services/routes';
+import { getChanges } from '../services/changes';
+import { getSources } from '../services/sources';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorMessage from '../components/ErrorMessage';
 import EmptyState from '../components/EmptyState';
 import Pagination from '../components/Pagination';
+import RouteModal from '../components/routes/RouteModal';
 
 /**
  * Format date to YYYY-MM-DD
@@ -24,21 +27,23 @@ const formatDate = (dateString: string): string => {
   }
 };
 
-/**
- * Format route display: Origin → Destination
- */
-const formatRoute = (origin: string, destination: string): string => {
-  return `${origin} → ${destination}`;
-};
+
+interface RouteMetadata {
+  sourceCount: number;
+  varianceStatus: string;
+}
 
 const Routes: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
   const [routes, setRoutes] = useState<RouteSubscription[]>([]);
+  const [routeMetadata, setRouteMetadata] = useState<Record<string, RouteMetadata>>({});
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingRoute, setEditingRoute] = useState<RouteSubscription | null>(null);
   const [pagination, setPagination] = useState<{
     total: number;
     page: number;
@@ -68,6 +73,50 @@ const Routes: React.FC = () => {
   }, [location.state]);
 
   /**
+   * Fetch metadata for routes (source count and variance status)
+   */
+  const fetchRouteMetadata = async (routesList: RouteSubscription[]): Promise<void> => {
+    const metadata: Record<string, RouteMetadata> = {};
+
+    // Fetch metadata for each route
+    await Promise.all(
+      routesList.map(async (route) => {
+        try {
+          // Fetch sources for this route (matching destination country and visa type)
+          const sourcesResponse = await getSources(1, 100, {
+            country: route.destination_country,
+            visa_type: route.visa_type,
+          });
+          const sourceCount = sourcesResponse?.total || 0;
+
+          // Fetch recent changes for this route (last 7 days)
+          const sevenDaysAgo = new Date();
+          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+          const changesResponse = await getChanges(1, 1, {
+            route_id: route.id,
+            start_date: sevenDaysAgo.toISOString().split('T')[0],
+          });
+          const recentChangesCount = changesResponse?.total || 0;
+          const varianceStatus = recentChangesCount > 0 ? 'Active' : 'Stable';
+
+          metadata[route.id] = {
+            sourceCount,
+            varianceStatus,
+          };
+        } catch {
+          // If metadata fetch fails, use defaults
+          metadata[route.id] = {
+            sourceCount: 0,
+            varianceStatus: 'Unknown',
+          };
+        }
+      })
+    );
+
+    setRouteMetadata(metadata);
+  };
+
+  /**
    * Fetch routes from API
    */
   const fetchRoutes = async (page: number, size: number): Promise<void> => {
@@ -82,6 +131,9 @@ const Routes: React.FC = () => {
         page: response.page,
         page_size: response.page_size,
       });
+
+      // Fetch metadata for routes
+      await fetchRouteMetadata(response.items);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch routes';
       setError(errorMessage);
@@ -89,6 +141,42 @@ const Routes: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  /**
+   * Handle modal open for create
+   */
+  const handleCreateRoute = (): void => {
+    setEditingRoute(null);
+    setModalOpen(true);
+  };
+
+  /**
+   * Handle modal open for edit
+   */
+  const handleEditRoute = (route: RouteSubscription): void => {
+    setEditingRoute(route);
+    setModalOpen(true);
+  };
+
+  /**
+   * Handle modal close
+   */
+  const handleCloseModal = (): void => {
+    setModalOpen(false);
+    setEditingRoute(null);
+  };
+
+  /**
+   * Handle successful route save
+   */
+  const handleRouteSaved = (): void => {
+    fetchRoutes(currentPage, pageSize);
+    setSuccessMessage(
+      editingRoute
+        ? 'Route updated successfully'
+        : 'Route created successfully'
+    );
   };
 
   /**
@@ -125,10 +213,10 @@ const Routes: React.FC = () => {
           </h1>
           {!loading && !error && (
             <button
-              onClick={() => navigate('/routes/new')}
+              onClick={handleCreateRoute}
               className="btn-primary"
             >
-              Add Route
+              Initialize Route
             </button>
           )}
         </div>
@@ -170,19 +258,22 @@ const Routes: React.FC = () => {
                 <thead>
                   <tr className="border-b-2 border-foreground bg-muted">
                     <th className="px-6 py-4 text-left text-sm font-display font-bold uppercase tracking-widest">
-                      Route
+                      Origin Country
                     </th>
                     <th className="px-6 py-4 text-left text-sm font-display font-bold uppercase tracking-widest">
-                      Visa Type
+                      Destination Country
                     </th>
                     <th className="px-6 py-4 text-left text-sm font-display font-bold uppercase tracking-widest">
-                      Email
+                      Visa Classification
                     </th>
                     <th className="px-6 py-4 text-left text-sm font-display font-bold uppercase tracking-widest">
-                      Created
+                      Created Date
                     </th>
                     <th className="px-6 py-4 text-left text-sm font-display font-bold uppercase tracking-widest">
-                      Status
+                      Variance Status
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-display font-bold uppercase tracking-widest">
+                      Associated Source Count
                     </th>
                     <th className="px-6 py-4 text-left text-sm font-display font-bold uppercase tracking-widest">
                       Actions
@@ -198,13 +289,13 @@ const Routes: React.FC = () => {
                       }`}
                     >
                       <td className="px-6 py-4 text-sm font-body">
-                        {formatRoute(route.origin_country, route.destination_country)}
+                        {route.origin_country}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-body">
+                        {route.destination_country}
                       </td>
                       <td className="px-6 py-4 text-sm font-body">
                         {route.visa_type}
-                      </td>
-                      <td className="px-6 py-4 text-sm font-body">
-                        {route.email}
                       </td>
                       <td className="px-6 py-4 text-sm font-mono text-mutedForeground">
                         {formatDate(route.created_at)}
@@ -212,13 +303,16 @@ const Routes: React.FC = () => {
                       <td className="px-6 py-4 text-sm font-body">
                         <span
                           className={`uppercase tracking-widest text-xs font-medium ${
-                            route.is_active
+                            routeMetadata[route.id]?.varianceStatus === 'Active'
                               ? 'text-foreground'
                               : 'text-mutedForeground'
                           }`}
                         >
-                          {route.is_active ? 'Active' : 'Inactive'}
+                          {routeMetadata[route.id]?.varianceStatus || 'Loading...'}
                         </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm font-body">
+                        {routeMetadata[route.id]?.sourceCount ?? '...'}
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center space-x-2">
@@ -230,18 +324,18 @@ const Routes: React.FC = () => {
                             View
                           </button>
                           <button
+                            onClick={() => handleEditRoute(route)}
                             className="btn-ghost text-xs"
-                            disabled
-                            title="Edit (coming soon)"
+                            title="Edit route"
                           >
                             Edit
                           </button>
                           <button
                             className="btn-ghost text-xs"
+                            title="Delete route (visual trigger)"
                             disabled
-                            title="Delete (coming soon)"
                           >
-                            Delete
+                            Del
                           </button>
                         </div>
                       </td>
@@ -263,6 +357,14 @@ const Routes: React.FC = () => {
             )}
           </>
         )}
+
+        {/* Route Modal */}
+        <RouteModal
+          isOpen={modalOpen}
+          onClose={handleCloseModal}
+          onSuccess={handleRouteSaved}
+          route={editingRoute}
+        />
       </div>
     </div>
   );

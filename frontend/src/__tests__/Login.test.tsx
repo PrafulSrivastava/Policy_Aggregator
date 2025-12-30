@@ -1,13 +1,15 @@
 /**
  * Login Page Component Tests
+ * Tests enhanced login module with validation, mock auth, loading, and error handling
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { BrowserRouter } from 'react-router-dom';
+import { HashRouter } from 'react-router-dom';
 import Login from '../pages/Login';
 import { AuthProvider } from '../contexts/AuthContext';
+import * as authService from '../services/auth';
 
 // Mock the auth service
 vi.mock('../services/auth', () => ({
@@ -43,19 +45,25 @@ vi.mock('react-router-dom', async () => {
 });
 
 const TestWrapper = ({ children }: { children: React.ReactNode }) => (
-  <BrowserRouter>
+  <HashRouter>
     <AuthProvider>
       {children}
     </AuthProvider>
-  </BrowserRouter>
+  </HashRouter>
 );
 
 describe('Login Page', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset environment variable
+    import.meta.env.VITE_MOCK_AUTH = 'true';
   });
 
-  it('should render login form', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('should render login form with updated labels', () => {
     render(
       <TestWrapper>
         <Login />
@@ -63,12 +71,23 @@ describe('Login Page', () => {
     );
 
     expect(screen.getByText('Login')).toBeInTheDocument();
-    expect(screen.getByLabelText(/username/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /login/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/user id/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/access key/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /initialize session/i })).toBeInTheDocument();
   });
 
-  it('should show error when username is empty', async () => {
+  it('should disable submit button when fields are empty', () => {
+    render(
+      <TestWrapper>
+        <Login />
+      </TestWrapper>
+    );
+
+    const submitButton = screen.getByRole('button', { name: /initialize session/i });
+    expect(submitButton).toBeDisabled();
+  });
+
+  it('should enable submit button when fields are filled', async () => {
     const user = userEvent.setup();
     render(
       <TestWrapper>
@@ -76,15 +95,17 @@ describe('Login Page', () => {
       </TestWrapper>
     );
 
-    const submitButton = screen.getByRole('button', { name: /login/i });
-    await user.click(submitButton);
+    const userIdInput = screen.getByLabelText(/user id/i);
+    const accessKeyInput = screen.getByLabelText(/access key/i);
+    const submitButton = screen.getByRole('button', { name: /initialize session/i });
 
-    await waitFor(() => {
-      expect(screen.getByText(/username is required/i)).toBeInTheDocument();
-    });
+    await user.type(userIdInput, 'test@example.com');
+    await user.type(accessKeyInput, 'password');
+
+    expect(submitButton).not.toBeDisabled();
   });
 
-  it('should show error when password is empty', async () => {
+  it('should show "Missing Credentials" error when User ID is empty', async () => {
     const user = userEvent.setup();
     render(
       <TestWrapper>
@@ -92,18 +113,156 @@ describe('Login Page', () => {
       </TestWrapper>
     );
 
-    const usernameInput = screen.getByLabelText(/username/i);
-    await user.type(usernameInput, 'testuser');
+    const accessKeyInput = screen.getByLabelText(/access key/i);
+    await user.type(accessKeyInput, 'password');
 
-    const submitButton = screen.getByRole('button', { name: /login/i });
+    const submitButton = screen.getByRole('button', { name: /initialize session/i });
     await user.click(submitButton);
 
     await waitFor(() => {
-      expect(screen.getByText(/password is required/i)).toBeInTheDocument();
+      expect(screen.getByText(/missing credentials/i)).toBeInTheDocument();
+      expect(screen.getByText(/user id is required/i)).toBeInTheDocument();
     });
   });
 
-  // Note: Full integration tests would require mocking the auth context
-  // and testing the full login flow. These tests demonstrate the structure.
+  it('should show "Missing Credentials" error when Access Key is empty', async () => {
+    const user = userEvent.setup();
+    render(
+      <TestWrapper>
+        <Login />
+      </TestWrapper>
+    );
+
+    const userIdInput = screen.getByLabelText(/user id/i);
+    await user.type(userIdInput, 'test@example.com');
+
+    const submitButton = screen.getByRole('button', { name: /initialize session/i });
+    await user.click(submitButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/missing credentials/i)).toBeInTheDocument();
+      expect(screen.getByText(/access key is required/i)).toBeInTheDocument();
+    });
+  });
+
+  it('should show loading spinner during login', async () => {
+    vi.useFakeTimers();
+    const user = userEvent.setup({ delay: null });
+    
+    vi.mocked(authService.login).mockImplementation(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      return { success: true };
+    });
+
+    render(
+      <TestWrapper>
+        <Login />
+      </TestWrapper>
+    );
+
+    const userIdInput = screen.getByLabelText(/user id/i);
+    const accessKeyInput = screen.getByLabelText(/access key/i);
+    const submitButton = screen.getByRole('button', { name: /initialize session/i });
+
+    await user.type(userIdInput, 'admin@example.com');
+    await user.type(accessKeyInput, 'password');
+    await user.click(submitButton);
+
+    // Should show loading spinner
+    await waitFor(() => {
+      expect(screen.getByText(/initializing session/i)).toBeInTheDocument();
+    });
+
+    // Fast-forward time
+    vi.advanceTimersByTime(1500);
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalled();
+    });
+
+    vi.useRealTimers();
+  });
+
+  it('should show "Access Denied" error for invalid credentials', async () => {
+    const user = userEvent.setup();
+    vi.mocked(authService.login).mockResolvedValue({
+      success: false,
+      error: 'Access Denied',
+    });
+
+    render(
+      <TestWrapper>
+        <Login />
+      </TestWrapper>
+    );
+
+    const userIdInput = screen.getByLabelText(/user id/i);
+    const accessKeyInput = screen.getByLabelText(/access key/i);
+    const submitButton = screen.getByRole('button', { name: /initialize session/i });
+
+    await user.type(userIdInput, 'wrong@example.com');
+    await user.type(accessKeyInput, 'wrongpassword');
+    await user.click(submitButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/access denied/i)).toBeInTheDocument();
+    });
+  });
+
+  it('should redirect to dashboard on successful login', async () => {
+    vi.useFakeTimers();
+    const user = userEvent.setup({ delay: null });
+    
+    vi.mocked(authService.login).mockImplementation(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      return { success: true };
+    });
+
+    render(
+      <TestWrapper>
+        <Login />
+      </TestWrapper>
+    );
+
+    const userIdInput = screen.getByLabelText(/user id/i);
+    const accessKeyInput = screen.getByLabelText(/access key/i);
+    const submitButton = screen.getByRole('button', { name: /initialize session/i });
+
+    await user.type(userIdInput, 'admin@example.com');
+    await user.type(accessKeyInput, 'password');
+    await user.click(submitButton);
+
+    // Fast-forward time
+    vi.advanceTimersByTime(1500);
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true });
+    });
+
+    vi.useRealTimers();
+  });
+
+  it('should clear validation errors when user types', async () => {
+    const user = userEvent.setup();
+    render(
+      <TestWrapper>
+        <Login />
+      </TestWrapper>
+    );
+
+    const submitButton = screen.getByRole('button', { name: /initialize session/i });
+    await user.click(submitButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/missing credentials/i)).toBeInTheDocument();
+    });
+
+    const userIdInput = screen.getByLabelText(/user id/i);
+    await user.type(userIdInput, 'test@example.com');
+
+    await waitFor(() => {
+      expect(screen.queryByText(/missing credentials/i)).not.toBeInTheDocument();
+    });
+  });
 });
 

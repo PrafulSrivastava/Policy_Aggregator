@@ -10,6 +10,8 @@ import type { PolicyChangeDetail } from '../../services/changes';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import ErrorMessage from '../../components/ErrorMessage';
 import DiffView from '../../components/changes/DiffView';
+import AIIntelligence from '../../components/changes/AIIntelligence';
+import ExportTools from '../../components/changes/ExportTools';
 
 /**
  * Format date to readable format
@@ -108,8 +110,8 @@ const ChangeDetail: React.FC = () => {
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center space-x-4 mb-4">
+        <div className="mb-12">
+          <div className="flex items-center space-x-4 mb-6">
             {change.route && (
               <Link
                 to={`/routes/${change.route.id}/changes`}
@@ -125,90 +127,35 @@ const ChangeDetail: React.FC = () => {
               All Changes
             </Link>
           </div>
-          <h1 className="text-7xl font-display font-bold tracking-tight">
-            Policy Change
-          </h1>
-          <p className="text-lg font-body text-mutedForeground mt-2">
-            Detected {formatDate(change.detected_at)}
-          </p>
+          
+          {/* Large Route Display */}
+          {change.route && (
+            <h1 className="text-7xl font-display font-bold tracking-tight mb-4">
+              {formatRoute(change.route.origin_country, change.route.destination_country)}
+            </h1>
+          )}
+          
+          {/* Detection Date and Visa Type */}
+          <div className="flex items-center gap-6 mb-4">
+            <p className="text-xl font-body text-mutedForeground font-mono">
+              Detected {formatDate(change.detected_at)}
+            </p>
+            {change.route && (
+              <span className="text-xl font-body text-foreground uppercase tracking-widest">
+                {change.route.visa_type}
+              </span>
+            )}
+          </div>
         </div>
 
-        {/* Change Information */}
-        <div className="card mb-8">
-          <h2 className="text-3xl font-display font-bold mb-4 tracking-tight">
-            Change Information
-          </h2>
-          <dl className="grid grid-cols-2 gap-4">
-            {change.route && (
-              <>
-                <div>
-                  <dt className="text-sm font-medium uppercase tracking-widest text-mutedForeground mb-1">
-                    Route
-                  </dt>
-                  <dd className="text-lg font-body">
-                    {formatRoute(change.route.origin_country, change.route.destination_country)} ({change.route.visa_type})
-                  </dd>
-                </div>
-              </>
-            )}
-            <div>
-              <dt className="text-sm font-medium uppercase tracking-widest text-mutedForeground mb-1">
-                Source
-              </dt>
-              <dd className="text-lg font-body">
-                <div>
-                  <div className="font-medium">{change.source.name}</div>
-                  <a
-                    href={change.source.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-mutedForeground hover:text-foreground underline"
-                  >
-                    {change.source.url}
-                  </a>
-                </div>
-              </dd>
-            </div>
-            <div>
-              <dt className="text-sm font-medium uppercase tracking-widest text-mutedForeground mb-1">
-                Detected At
-              </dt>
-              <dd className="text-lg font-mono text-mutedForeground">
-                {formatDate(change.detected_at)}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-sm font-medium uppercase tracking-widest text-mutedForeground mb-1">
-                Summary
-              </dt>
-              <dd className="text-lg font-body">
-                {change.summary}
-                {change.is_new && (
-                  <span className="ml-2 px-2 py-0.5 bg-foreground text-background text-xs uppercase tracking-widest">
-                    New
-                  </span>
-                )}
-              </dd>
-            </div>
-            {change.old_version && (
-              <div>
-                <dt className="text-sm font-medium uppercase tracking-widest text-mutedForeground mb-1">
-                  Old Version
-                </dt>
-                <dd className="text-lg font-mono text-mutedForeground">
-                  {formatDate(change.old_version.fetched_at)} ({change.old_version.content_length} chars)
-                </dd>
-              </div>
-            )}
-            <div>
-              <dt className="text-sm font-medium uppercase tracking-widest text-mutedForeground mb-1">
-                New Version
-              </dt>
-              <dd className="text-lg font-mono text-mutedForeground">
-                {formatDate(change.new_version.fetched_at)} ({change.new_version.content_length} chars)
-              </dd>
-            </div>
-          </dl>
+        {/* AI Intelligence Section */}
+        <div className="mb-8">
+          <AIIntelligence change={change} />
+        </div>
+
+        {/* Export Tools Section */}
+        <div className="mb-8">
+          <ExportTools change={change} />
         </div>
 
         {/* Navigation */}

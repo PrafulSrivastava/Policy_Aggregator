@@ -22,6 +22,9 @@ export interface Source {
   metadata: Record<string, unknown>;
   created_at: string;
   updated_at: string;
+  status?: 'healthy' | 'stale' | 'error' | 'never_checked';
+  consecutive_fetch_failures?: number;
+  last_fetch_error?: string | null;
 }
 
 /**
@@ -213,5 +216,167 @@ export const addSourceToRoute = async (
     ...sourceData,
     metadata,
   });
+};
+
+/**
+ * Update source request data type
+ */
+export interface UpdateSourceRequest {
+  country?: string;
+  visaType?: string;
+  url?: string;
+  name?: string;
+  fetchType?: 'html' | 'pdf';
+  checkFrequency?: 'daily' | 'weekly' | 'custom';
+  isActive?: boolean;
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Update an existing source
+ * 
+ * @param sourceId - Source ID to update
+ * @param sourceData - Source data to update
+ * @returns Updated Source
+ * @throws Error if API call fails
+ */
+export const updateSource = async (
+  sourceId: string,
+  sourceData: UpdateSourceRequest
+): Promise<Source> => {
+  try {
+    const updatePayload: Record<string, unknown> = {};
+    
+    if (sourceData.country !== undefined) {
+      updatePayload.country = sourceData.country.toUpperCase();
+    }
+    if (sourceData.visaType !== undefined) {
+      updatePayload.visa_type = sourceData.visaType;
+    }
+    if (sourceData.url !== undefined) {
+      updatePayload.url = sourceData.url;
+    }
+    if (sourceData.name !== undefined) {
+      updatePayload.name = sourceData.name;
+    }
+    if (sourceData.fetchType !== undefined) {
+      updatePayload.fetch_type = sourceData.fetchType;
+    }
+    if (sourceData.checkFrequency !== undefined) {
+      updatePayload.check_frequency = sourceData.checkFrequency;
+    }
+    if (sourceData.isActive !== undefined) {
+      updatePayload.is_active = sourceData.isActive;
+    }
+    if (sourceData.metadata !== undefined) {
+      updatePayload.metadata = sourceData.metadata;
+    }
+
+    const response = await apiClient.put<Source>(`/api/sources/${sourceId}`, updatePayload);
+
+    return response.data;
+  } catch (error) {
+    if (isApiError(error)) {
+      const status = error.response?.status;
+      const errorData = error.response?.data?.error;
+
+      if (status === 404) {
+        const errorMessage = errorData?.message || 'Source not found';
+        throw new Error(errorMessage);
+      }
+
+      if (status === 400) {
+        const errorMessage = errorData?.message || 'Validation error';
+        throw new Error(errorMessage);
+      }
+
+      const errorMessage = errorData?.message || 'Failed to update source';
+      throw new Error(errorMessage);
+    }
+
+    throw new Error(getErrorMessage(error));
+  }
+};
+
+/**
+ * Trigger source fetch response type
+ */
+export interface TriggerSourceResponse {
+  success: boolean;
+  sourceId: string;
+  changeDetected: boolean;
+  policyVersionId: string | null;
+  policyChangeId: string | null;
+  error: string | null;
+  fetchedAt: string | null;
+}
+
+/**
+ * Manually trigger a source fetch
+ * 
+ * @param sourceId - Source ID to trigger
+ * @returns TriggerSourceResponse with fetch result
+ * @throws Error if API call fails
+ */
+export const triggerSourceFetch = async (
+  sourceId: string
+): Promise<TriggerSourceResponse> => {
+  try {
+    const response = await apiClient.post<TriggerSourceResponse>(
+      `/api/sources/${sourceId}/trigger`
+    );
+
+    return response.data;
+  } catch (error) {
+    if (isApiError(error)) {
+      const status = error.response?.status;
+      const errorData = error.response?.data?.error;
+
+      if (status === 404) {
+        const errorMessage = errorData?.message || 'Source not found';
+        throw new Error(errorMessage);
+      }
+
+      const errorMessage = errorData?.message || 'Failed to trigger source fetch';
+      throw new Error(errorMessage);
+    }
+
+    throw new Error(getErrorMessage(error));
+  }
+};
+
+/**
+ * System status response with sources
+ */
+export interface SystemStatusResponse {
+  sources: Source[];
+  statistics: {
+    total_sources: number;
+    healthy_sources: number;
+    error_sources: number;
+    stale_sources: number;
+    never_checked_sources: number;
+  };
+  last_daily_job_run: string | null;
+}
+
+/**
+ * Get system status with all sources and their health information
+ * 
+ * @returns SystemStatusResponse with sources and statistics
+ * @throws Error if API call fails
+ */
+export const getSystemStatus = async (): Promise<SystemStatusResponse> => {
+  try {
+    const response = await apiClient.get<SystemStatusResponse>('/api/status');
+    return response.data;
+  } catch (error) {
+    if (isApiError(error)) {
+      const errorMessage = error.response?.data?.error?.message || 'Failed to fetch system status';
+      throw new Error(errorMessage);
+    }
+
+    throw new Error(getErrorMessage(error));
+  }
 };
 

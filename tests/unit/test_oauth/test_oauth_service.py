@@ -224,3 +224,4 @@ class TestOAuthService:
         with pytest.raises(ValueError, match="Email not found in Google user info"):
             await get_or_create_user_from_google(google_user_info, db_session)
 
+

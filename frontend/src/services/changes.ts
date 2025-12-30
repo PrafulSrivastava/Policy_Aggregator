@@ -48,7 +48,7 @@ export interface PolicyChange {
   is_new: boolean;
   diff_length: number;
   source: ChangeSource;
-  route: ChangeRoute;
+  route: ChangeRoute | null;
 }
 
 /**
@@ -182,4 +182,5 @@ export const getChangeDetail = async (
     throw new Error(getErrorMessage(error));
   }
 };
+
 

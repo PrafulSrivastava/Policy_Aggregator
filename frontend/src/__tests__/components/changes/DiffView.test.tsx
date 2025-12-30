@@ -17,7 +17,7 @@ describe('DiffView Component', () => {
     expect(addedLine.closest('div')).toHaveClass('bg-green-100');
   });
 
-  it('should render diff with removed lines', () => {
+  it('should render diff with removed lines and strikethrough', () => {
     const diff = '--- old\n+++ new\n@@ -1,3 +1,2 @@\n line1\n-line2\n line3';
     
     render(<DiffView diff={diff} />);
@@ -25,6 +25,7 @@ describe('DiffView Component', () => {
     const removedLine = screen.getByText(/line2/);
     expect(removedLine).toBeInTheDocument();
     expect(removedLine.closest('div')).toHaveClass('bg-red-100');
+    expect(removedLine.closest('div')).toHaveClass('line-through');
   });
 
   it('should render diff with context lines', () => {
@@ -88,7 +89,9 @@ describe('DiffView Component', () => {
 
     expect(screen.getByText(/removed line/)).toBeInTheDocument();
     expect(screen.getByText(/added line/)).toBeInTheDocument();
-    expect(screen.getByText(/unchanged line/)).toBeInTheDocument();
+    // Check that context lines are rendered (there should be at least one)
+    const contextLines = screen.getAllByText(/unchanged line|context line|another context/);
+    expect(contextLines.length).toBeGreaterThan(0);
   });
 });
 

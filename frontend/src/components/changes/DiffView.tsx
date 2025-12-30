@@ -51,7 +51,7 @@ const DiffView: React.FC<DiffViewProps> = ({ diff, className = '' }) => {
               prefix = '+ ';
               break;
             case 'removed':
-              lineClass += ' bg-red-100 text-red-900';
+              lineClass += ' bg-red-100 text-red-900 line-through';
               prefix = '- ';
               break;
             case 'header':
@@ -77,4 +77,5 @@ const DiffView: React.FC<DiffViewProps> = ({ diff, className = '' }) => {
 };
 
 export default DiffView;
+
 

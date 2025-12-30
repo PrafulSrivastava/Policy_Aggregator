@@ -31,13 +31,52 @@ export interface LoginResult {
 }
 
 /**
+ * Mock credentials for demonstration
+ */
+const MOCK_CREDENTIALS = {
+  username: 'admin@example.com',
+  password: 'password',
+};
+
+/**
+ * Check if mock authentication is enabled
+ */
+const isMockAuthEnabled = (): boolean => {
+  return import.meta.env.VITE_MOCK_AUTH === 'true' || import.meta.env.VITE_MOCK_AUTH === '1';
+};
+
+/**
+ * Simulate network delay
+ */
+const delay = (ms: number): Promise<void> => {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+};
+
+/**
  * Log in with username and password
+ * Supports both mock authentication and real API authentication
  * 
  * @param username - User's username
  * @param password - User's password
  * @returns LoginResult with success status and optional error message
  */
 export const login = async (username: string, password: string): Promise<LoginResult> => {
+  // Check if mock authentication is enabled
+  if (isMockAuthEnabled()) {
+    // Simulate network latency (1.5s delay)
+    await delay(1500);
+
+    // Check against hardcoded credentials
+    if (username === MOCK_CREDENTIALS.username && password === MOCK_CREDENTIALS.password) {
+      // Set a mock token for consistency
+      setToken('mock-token-' + Date.now());
+      return { success: true };
+    } else {
+      return { success: false, error: 'Access Denied' };
+    }
+  }
+
+  // Real API authentication
   try {
     const response = await apiClient.post<LoginResponse>('/auth/login', {
       username,
