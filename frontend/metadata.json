@@ -1,0 +1,5 @@
+{
+  "name": "Policy Aggregator",
+  "description": "A regulatory change monitoring admin interface for immigration consultancies.",
+  "requestFramePermissions": []
+}

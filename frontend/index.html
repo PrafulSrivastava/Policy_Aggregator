@@ -1,13 +1,72 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <title>Policy Aggregator</title>
+    
+    <!-- Typography: Inter for that Swiss Grotesque look -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+</head>
+  <body class="bg-white text-black antialiased bg-swiss-noise selection:bg-accent selection:text-white">
+    <div id="root" class="min-h-screen flex flex-col"></div>
+    <script type="module" src="/index.tsx" onerror="console.error('🔴 ❌❌❌ FAILED TO LOAD index.tsx:', this.src, 'Error:', event)"></script>
+    <script>
+      // Immediate test - this should run before React
+      console.log('🔴 HTML SCRIPT TAG: This should appear immediately when page loads');
+      console.log('🔴 Root element exists:', !!document.getElementById('root'));
+      console.log('🔴 Document ready state:', document.readyState);
+      
+      // Wait for DOM to be ready, then check for Vite's injected script
+      document.addEventListener('DOMContentLoaded', function() {
+        console.log('🔴 DOM Content Loaded');
+        console.log('🔴 Checking for Vite script tags...');
+        const scripts = document.querySelectorAll('script[type="module"]');
+        console.log('🔴 Found', scripts.length, 'module script(s)');
+        scripts.forEach((script, index) => {
+          const src = script.src || 'inline';
+          console.log('🔴 Script', index + ':', src.substring(0, 100));
+          
+          // Check for errors
+          script.addEventListener('error', function(e) {
+            console.error('🔴 ❌ Script error for:', src, e);
+          });
+        });
+        
+        // Check if index.tsx is being loaded
+        const indexScript = Array.from(scripts).find(s => {
+          const src = s.src || '';
+          return src.includes('index') || src.includes('index.tsx');
+        });
+        if (indexScript) {
+          console.log('🔴 ✅ Found index.tsx script:', indexScript.src);
+        } else {
+          console.error('🔴 ❌ index.tsx script NOT FOUND in module scripts!');
+          console.error('🔴 All module script sources:', Array.from(scripts).map(s => s.src));
+        }
+      });
+      
+      // Global error handler for module loading
+      window.addEventListener('error', function(e) {
+        if (e.filename && e.filename.includes('index')) {
+          console.error('🔴 ❌❌❌ GLOBAL ERROR loading index.tsx:', e);
+          console.error('🔴 Error message:', e.message);
+          console.error('🔴 Error filename:', e.filename);
+          console.error('🔴 Error lineno:', e.lineno);
+        }
+      }, true);
+      
+      // Also check after a delay
+      setTimeout(function() {
+        console.log('🔴 2 second check - scripts in page:', document.querySelectorAll('script').length);
+        const moduleScripts = document.querySelectorAll('script[type="module"]');
+        console.log('🔴 Module scripts at 2s:', Array.from(moduleScripts).map(s => s.src || 'inline'));
+        if (moduleScripts.length === 0) {
+          console.error('🔴 ❌ NO MODULE SCRIPTS FOUND! Vite may not be injecting scripts.');
+        }
+      }, 2000);
+    </script>
   </body>
 </html>
