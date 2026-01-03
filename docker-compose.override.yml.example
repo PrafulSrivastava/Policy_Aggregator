@@ -1,0 +1,40 @@
+# Example override file for local development
+# Copy this to docker-compose.override.yml and customize as needed
+# docker-compose.override.yml is automatically loaded by docker-compose
+
+version: '3.8'
+
+services:
+  app:
+    # Override command for development with hot reload
+    command: >
+      sh -c "
+        echo 'Waiting for database to be ready...' &&
+        sleep 5 &&
+        echo 'Running database migrations...' &&
+        alembic upgrade head &&
+        echo 'Starting application with hot reload...' &&
+        uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+      "
+    # Mount source code for hot reload
+    volumes:
+      - ./logs:/app/logs
+      - ./admin-ui:/app/admin-ui
+      - ./api:/app/api
+      - ./fetchers:/app/fetchers
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini
+
+  frontend:
+    # Use development Dockerfile for hot reload
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      VITE_API_BASE_URL: http://localhost:8000
+

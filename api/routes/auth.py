@@ -3,6 +3,7 @@
 import logging
 from datetime import datetime
 from typing import Optional
+from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Response, Query
 from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -10,16 +11,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from jose import jwt
 
 from api.database import get_db
-from api.models.schemas.user import LoginRequest, LoginResponse, UserResponse
+from api.models.schemas.user import LoginRequest, LoginResponse, SignupRequest, SignupResponse, UserResponse
 from api.repositories.user_repository import UserRepository
-from api.auth.auth import verify_password, create_access_token
+from api.auth.auth import verify_password, create_access_token, get_password_hash
 from api.services.oauth_service import (
     generate_state_token,
     get_google_authorization_url,
     exchange_google_code,
     get_or_create_user_from_google
 )
-from api.config import settings
+from api.config import settings, Environment
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +127,107 @@ async def login(
     return LoginResponse(
         access_token=access_token,
         token_type="bearer"
+    )
+
+
+@router.post("/signup", response_model=SignupResponse, status_code=status.HTTP_201_CREATED)
+async def signup(
+    signup_request: SignupRequest,
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(get_db)
+) -> SignupResponse:
+    """
+    Signup endpoint that creates a new user account and returns JWT token.
+    
+    Args:
+        signup_request: Signup credentials (email and password)
+        request: FastAPI request object
+        response: FastAPI response object for setting cookies
+        db: Database session
+        
+    Returns:
+        SignupResponse with access_token, token_type, and user info
+        
+    Raises:
+        HTTPException: 409 if email already exists, 400 for validation errors
+    """
+    user_repo = UserRepository(db)
+    
+    # Check if email already exists (email is used as username)
+    existing_user = await user_repo.get_by_username(signup_request.email)
+    if existing_user:
+        logger.warning(
+            f"Signup attempt with existing email: {signup_request.email}",
+            extra={
+                "email": signup_request.email,
+                "reason": "email_already_exists",
+                "client_ip": request.client.host if hasattr(request, 'client') and request.client else "unknown"
+            }
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Email already exists"
+        )
+    
+    # Hash password
+    hashed_password = get_password_hash(signup_request.password)
+    
+    # Create user
+    user_data = {
+        "username": signup_request.email,  # Email is used as username
+        "hashed_password": hashed_password,
+        "is_active": True,
+        "auth_provider": "password"
+    }
+    
+    try:
+        user = await user_repo.create(user_data)
+    except Exception as e:
+        logger.error(
+            f"Error creating user during signup: {str(e)}",
+            extra={
+                "email": signup_request.email,
+                "error": str(e),
+                "client_ip": request.client.host if hasattr(request, 'client') and request.client else "unknown"
+            }
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create user account"
+        )
+    
+    # Create JWT token
+    access_token = create_access_token(data={"sub": user.username})
+    
+    # Set session cookie (optional, for web requests)
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=True,  # Set to True in production with HTTPS
+        samesite="lax",
+        max_age=86400  # 24 hours in seconds
+    )
+    
+    logger.info(
+        f"User signed up successfully: {signup_request.email}",
+        extra={
+            "username": signup_request.email,
+            "user_id": str(user.id),
+            "client_ip": request.client.host if hasattr(request, 'client') and request.client else "unknown"
+        }
+    )
+    
+    return SignupResponse(
+        access_token=access_token,
+        token_type="bearer",
+        user=UserResponse(
+            id=user.id,
+            username=user.username,
+            is_active=user.is_active,
+            created_at=user.created_at
+        )
     )
 
 
@@ -268,11 +370,14 @@ async def google_oauth_callback(
     Returns:
         RedirectResponse to dashboard on success, login page on error
     """
+    # Get frontend URL for redirects
+    frontend_url = settings.FRONTEND_URL
+    
     # Handle user denial
     if error:
         logger.warning(f"Google OAuth error: {error}")
         return RedirectResponse(
-            url=f"/login?error=oauth_denied",
+            url=f"{frontend_url}/#/login?error=oauth_denied",
             status_code=status.HTTP_302_FOUND
         )
     
@@ -280,7 +385,7 @@ async def google_oauth_callback(
     if not code or not state:
         logger.warning("Missing code or state in OAuth callback")
         return RedirectResponse(
-            url=f"/login?error=oauth_invalid",
+            url=f"{frontend_url}/#/login?error=oauth_invalid",
             status_code=status.HTTP_302_FOUND
         )
     
@@ -289,7 +394,7 @@ async def google_oauth_callback(
     if not oauth_state_cookie:
         logger.warning("OAuth state cookie not found")
         return RedirectResponse(
-            url=f"/login?error=oauth_invalid",
+            url=f"{frontend_url}/#/login?error=oauth_invalid",
             status_code=status.HTTP_302_FOUND
         )
     
@@ -298,7 +403,7 @@ async def google_oauth_callback(
     except ValueError as e:
         logger.warning(f"Invalid OAuth state token: {str(e)}")
         return RedirectResponse(
-            url=f"/login?error=oauth_invalid",
+            url=f"{frontend_url}/#/login?error=oauth_invalid",
             status_code=status.HTTP_302_FOUND
         )
     
@@ -319,12 +424,14 @@ async def google_oauth_callback(
         # Create JWT token (same format as password auth)
         access_token = create_access_token(data={"sub": user.username})
         
-        # Set JWT token in cookie
+        # Set JWT token in cookie (for same-origin requests)
+        # Use secure=False in development, secure=True in production
+        is_secure = settings.ENVIRONMENT == Environment.PRODUCTION
         response.set_cookie(
             key="access_token",
             value=access_token,
             httponly=True,
-            secure=True,  # Set to True in production with HTTPS
+            secure=is_secure,  # True in production with HTTPS, False in development
             samesite="lax",
             max_age=86400  # 24 hours
         )
@@ -338,22 +445,26 @@ async def google_oauth_callback(
             }
         )
         
-        # Redirect to dashboard
+        # Redirect to dashboard with token in URL (for cross-origin cookie issue)
+        # Frontend will extract token from URL and store in localStorage
+        # URL-encode the token to handle special characters
+        redirect_url = f"{frontend_url}/#/?token={quote(access_token)}"
+        
         return RedirectResponse(
-            url="/",
+            url=redirect_url,
             status_code=status.HTTP_302_FOUND
         )
         
     except ValueError as e:
         logger.error(f"OAuth error: {str(e)}")
         return RedirectResponse(
-            url=f"/login?error=oauth_failed",
+            url=f"{frontend_url}/#/login?error=oauth_failed",
             status_code=status.HTTP_302_FOUND
         )
     except Exception as e:
         logger.error(f"Unexpected OAuth error: {str(e)}", exc_info=True)
         return RedirectResponse(
-            url=f"/login?error=oauth_failed",
+            url=f"{frontend_url}/#/login?error=oauth_failed",
             status_code=status.HTTP_302_FOUND
         )
 

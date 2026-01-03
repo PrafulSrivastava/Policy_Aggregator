@@ -11,6 +11,8 @@ import type {
   DailyFetchJobResponse,
   LoginRequest,
   LoginResponse,
+  SignupRequest,
+  SignupResponse,
 } from '../types/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -27,6 +29,7 @@ class ApiClient {
       headers: {
         'Content-Type': 'application/json',
       },
+      withCredentials: true, // Include cookies in requests (for OAuth cookie-based auth)
     });
 
     // Request interceptor - add auth token
@@ -79,8 +82,60 @@ class ApiClient {
     return response.data;
   }
 
+  async signup(credentials: SignupRequest): Promise<SignupResponse> {
+    const response = await this.client.post<SignupResponse>('/auth/signup', credentials);
+    return response.data;
+  }
+
   async logout(): Promise<void> {
     await this.client.post('/auth/logout');
+  }
+
+  // OAuth endpoints
+  initiateGoogleOAuth(): void {
+    // Redirect to backend OAuth endpoint
+    // The backend will handle the OAuth flow and redirect to Google
+    window.location.href = `${API_BASE_URL}/auth/google`;
+  }
+
+  async checkOAuthAvailability(): Promise<boolean> {
+    try {
+      console.log('[API] Checking OAuth availability...');
+      // Use fetch instead of axios for better redirect handling
+      // Make a GET request with redirect: 'manual' to detect redirect without following it
+      const response = await fetch(`${API_BASE_URL}/auth/google`, {
+        method: 'GET',
+        credentials: 'include', // Include cookies
+        redirect: 'manual' // Don't follow redirects automatically
+      });
+      
+      console.log('[API] OAuth check response status:', response.status);
+      
+      // 302 means redirect (OAuth is configured and will redirect to Google)
+      // 501 means not implemented (OAuth is not configured)
+      const isAvailable = response.status === 302;
+      console.log('[API] OAuth available:', isAvailable);
+      return isAvailable;
+    } catch (error: any) {
+      console.log('[API] OAuth availability check error:', error);
+      // For network errors or other issues, assume OAuth is not available
+      console.warn('[API] OAuth availability check failed:', error.message || error);
+      return false;
+    }
+  }
+
+  async verifyAuth(): Promise<boolean> {
+    try {
+      // Try to access a protected endpoint to verify authentication
+      // The cookie will be sent automatically if present
+      await this.client.get('/api/dashboard');
+      return true;
+    } catch (error: any) {
+      if (error.response?.status === 401) {
+        return false;
+      }
+      throw error;
+    }
   }
 
   // Dashboard

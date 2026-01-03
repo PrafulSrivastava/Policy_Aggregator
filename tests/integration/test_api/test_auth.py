@@ -154,6 +154,132 @@ class TestProtectedRoutes:
             decode_access_token(invalid_token)
 
 
+class TestSignupEndpoint:
+    """Tests for signup endpoint."""
+    
+    @pytest.mark.asyncio
+    async def test_signup_with_valid_data(self, client, db_session):
+        """Test signup with valid email and password."""
+        response = client.post(
+            "/auth/signup",
+            json={
+                "email": "newuser@example.com",
+                "password": "securepass123"
+            }
+        )
+        
+        assert response.status_code == 201
+        data = response.json()
+        
+        assert "access_token" in data
+        assert "token_type" in data
+        assert data["token_type"] == "bearer"
+        assert len(data["access_token"]) > 0
+        assert "user" in data
+        assert data["user"]["username"] == "newuser@example.com"
+        assert data["user"]["is_active"] is True
+        assert "id" in data["user"]
+        assert "created_at" in data["user"]
+    
+    @pytest.mark.asyncio
+    async def test_signup_with_duplicate_email(self, client, db_session):
+        """Test signup with email that already exists."""
+        # First create a user
+        email = "existing@example.com"
+        user_repo = UserRepository(db_session)
+        user_data = {
+            "username": email,
+            "hashed_password": get_password_hash("password123"),
+            "is_active": True
+        }
+        await user_repo.create(user_data)
+        await db_session.commit()
+        
+        # Try to signup with same email
+        response = client.post(
+            "/auth/signup",
+            json={
+                "email": email,
+                "password": "anotherpassword123"
+            }
+        )
+        
+        assert response.status_code == 409
+        data = response.json()
+        assert "detail" in data
+        assert "Email already exists" in data["detail"]
+    
+    @pytest.mark.asyncio
+    async def test_signup_with_invalid_email_format(self, client, db_session):
+        """Test signup with invalid email format."""
+        response = client.post(
+            "/auth/signup",
+            json={
+                "email": "notanemail",
+                "password": "securepass123"
+            }
+        )
+        
+        assert response.status_code == 422  # Validation error
+    
+    @pytest.mark.asyncio
+    async def test_signup_with_short_password(self, client, db_session):
+        """Test signup with password shorter than 8 characters."""
+        response = client.post(
+            "/auth/signup",
+            json={
+                "email": "user@example.com",
+                "password": "short"  # Less than 8 characters
+            }
+        )
+        
+        assert response.status_code == 422  # Validation error
+    
+    @pytest.mark.asyncio
+    async def test_signup_with_missing_fields(self, client, db_session):
+        """Test signup with missing required fields."""
+        response = client.post(
+            "/auth/signup",
+            json={
+                "email": "user@example.com"
+                # Missing password
+            }
+        )
+        
+        assert response.status_code == 422  # Validation error
+    
+    @pytest.mark.asyncio
+    async def test_signup_creates_user_in_database(self, client, db_session):
+        """Test that signup actually creates a user in the database."""
+        email = "dbuser@example.com"
+        password = "testpassword123"
+        
+        response = client.post(
+            "/auth/signup",
+            json={
+                "email": email,
+                "password": password
+            }
+        )
+        
+        assert response.status_code == 201
+        
+        # Verify user exists in database
+        user_repo = UserRepository(db_session)
+        user = await user_repo.get_by_username(email)
+        
+        assert user is not None
+        assert user.username == email
+        assert user.is_active is True
+        assert user.hashed_password is not None
+        assert user.auth_provider == "password"
+        
+        # Verify password is hashed (not plain text)
+        from api.auth.auth import verify_password
+        assert verify_password(password, user.hashed_password)
+        assert password != user.hashed_password  # Ensure it's hashed
+
+
 class TestLogoutEndpoint:
     """Tests for logout endpoint."""
     

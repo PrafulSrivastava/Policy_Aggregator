@@ -1,18 +1,67 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button, Card, Input } from '../components/Common';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { Eye, EyeOff, Lock, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import GoogleOAuthButton from '../components/auth/GoogleOAuthButton';
 
 const Login: React.FC = () => {
   console.log('[LOGIN] Login page component rendering...');
-  const { login } = useAuth();
+  const { login, initiateGoogleOAuth, checkOAuthAvailability } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [isOAuthLoading, setIsOAuthLoading] = useState(false);
+  const [isOAuthAvailable, setIsOAuthAvailable] = useState(false);
+  // TODO: Remove this debug flag after testing
+  // Set to true to always show OAuth button for testing
+  const FORCE_SHOW_OAUTH = true; // Temporarily enabled for UI testing
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+
+  // Check OAuth availability on mount
+  useEffect(() => {
+    const checkOAuth = async () => {
+      console.log('[LOGIN] Checking OAuth availability...');
+      try {
+        const available = await checkOAuthAvailability();
+        console.log('[LOGIN] OAuth available:', available);
+        setIsOAuthAvailable(available);
+      } catch (error) {
+        console.error('[LOGIN] Error checking OAuth availability:', error);
+        // On error, default to false (don't show button)
+        // But log the error for debugging
+        setIsOAuthAvailable(false);
+      }
+    };
+    checkOAuth();
+  }, [checkOAuthAvailability]);
+
+  // Handle OAuth errors from URL params
+  useEffect(() => {
+    const oauthError = searchParams.get('error');
+    if (oauthError) {
+      let errorMessage = 'Authentication failed';
+      switch (oauthError) {
+        case 'oauth_denied':
+          errorMessage = 'Access denied. Please try again or use password login.';
+          break;
+        case 'oauth_invalid':
+          errorMessage = 'Invalid authentication. Please try again.';
+          break;
+        case 'oauth_failed':
+          errorMessage = 'Authentication failed. Please try again or use password login.';
+          break;
+        default:
+          errorMessage = 'Authentication error. Please try again.';
+      }
+      setError(errorMessage);
+      // Clear the error from URL
+      navigate('/login', { replace: true });
+    }
+  }, [searchParams, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,6 +81,20 @@ const Login: React.FC = () => {
     } finally {
       setIsLoading(false);
       console.log('[LOGIN] Login attempt completed');
+    }
+  };
+
+  const handleGoogleOAuth = () => {
+    console.log('[LOGIN] Google OAuth button clicked');
+    setIsOAuthLoading(true);
+    setError('');
+    try {
+      initiateGoogleOAuth();
+      // The redirect will happen, so we don't need to handle the response
+    } catch (err: any) {
+      console.error('[LOGIN] ❌ OAuth initiation failed:', err);
+      setError('Failed to initiate Google OAuth. Please try again.');
+      setIsOAuthLoading(false);
     }
   };
 
@@ -121,9 +184,40 @@ const Login: React.FC = () => {
               </div>
             )}
 
+            {(() => {
+              const shouldShowOAuth = isOAuthAvailable || FORCE_SHOW_OAUTH;
+              console.log('[LOGIN] OAuth button render check:', { isOAuthAvailable, FORCE_SHOW_OAUTH, shouldShowOAuth });
+              return shouldShowOAuth ? (
+                <>
+                  <GoogleOAuthButton 
+                    onClick={handleGoogleOAuth}
+                    isLoading={isOAuthLoading}
+                    disabled={isLoading}
+                  />
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t-2 border-black"></div>
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-white px-2 text-black font-bold tracking-wider">OR</span>
+                    </div>
+                  </div>
+                </>
+              ) : null;
+            })()}
+
             <Button type="submit" className="w-full h-16 text-sm" isLoading={isLoading}>
               Authenticate <ArrowRight className="ml-2 w-4 h-4" />
             </Button>
+
+            <div className="text-center">
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                Don't have an account?{' '}
+                <Link to="/signup" className="text-black hover:text-accent underline">
+                  Sign up
+                </Link>
+              </p>
+            </div>
           </form>
         </div>
       </div>

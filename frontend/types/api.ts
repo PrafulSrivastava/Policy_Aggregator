@@ -168,3 +168,21 @@ export interface LoginResponse {
   token_type: string;
 }
 
+export interface SignupRequest {
+  email: string;
+  password: string;
+}
+
+export interface UserInfo {
+  id: string;
+  username: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface SignupResponse {
+  access_token: string;
+  token_type: string;
+  user: UserInfo;
+}
+

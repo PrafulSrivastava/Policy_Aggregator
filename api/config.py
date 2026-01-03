@@ -1,6 +1,7 @@
 """Application configuration using Pydantic settings."""
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, AliasChoices
 from typing import Optional, List
 from enum import Enum
 
@@ -16,6 +17,12 @@ class Environment(str, Enum):
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
     
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra="ignore"  # Ignore extra environment variables
+    )
+    
     # Database
     DATABASE_URL: str
     
@@ -29,14 +36,23 @@ class Settings(BaseSettings):
     EMAIL_FROM_ADDRESS: str = "alerts@policyaggregator.com"
     ADMIN_EMAIL: Optional[str] = None
     
-    # Google OAuth
-    GOOGLE_OAUTH_CLIENT_ID: Optional[str] = None
-    GOOGLE_OAUTH_CLIENT_SECRET: Optional[str] = None
+    # Google OAuth (accepts both GOOGLE_OAUTH_* and GOOGLE_* naming)
+    GOOGLE_OAUTH_CLIENT_ID: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_CLIENT_ID")
+    )
+    GOOGLE_OAUTH_CLIENT_SECRET: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_CLIENT_SECRET")
+    )
     GOOGLE_OAUTH_REDIRECT_URI: Optional[str] = None
     
     # Email Templates
     EMAIL_TEMPLATE_DIR: str = "admin-ui/templates/emails"
     ADMIN_UI_URL: str = "http://localhost:8000"
+    
+    # Frontend URL (for OAuth redirects)
+    FRONTEND_URL: str = "http://localhost:3000"
     
     # Application
     ENVIRONMENT: Environment = Environment.DEVELOPMENT
@@ -56,10 +72,6 @@ class Settings(BaseSettings):
     # Server Configuration
     HOST: str = "0.0.0.0"
     PORT: int = 8000
-    
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
 
 
 # Global settings instance

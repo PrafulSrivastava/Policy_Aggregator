@@ -47,3 +47,4 @@ def downgrade() -> None:
                     existing_comment='Bcrypt hashed password')
 
 
+

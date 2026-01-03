@@ -135,7 +135,7 @@ class TestEmailTemplateService:
             sample_policy_change,
             sample_route_subscription,
             sample_source,
-            admin_ui_url="http://localhost:8000"
+            admin_ui_url="http://localhost:9000"
         )
         
         assert isinstance(email_content, EmailContent)
@@ -154,7 +154,7 @@ class TestEmailTemplateService:
             sample_policy_change,
             sample_route_subscription,
             sample_source,
-            admin_ui_url="http://localhost:8000"
+            admin_ui_url="http://localhost:9000"
         )
         
         assert email_content.text_body is not None

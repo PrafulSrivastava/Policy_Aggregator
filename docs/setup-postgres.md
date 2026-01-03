@@ -91,7 +91,7 @@ This guide will help you set up PostgreSQL for the Policy Aggregator project.
    # Optional: Email Service
    RESEND_API_KEY=your_resend_api_key_here
    EMAIL_FROM_ADDRESS=alerts@policyaggregator.com
-   ADMIN_UI_URL=http://localhost:8000
+   ADMIN_UI_URL=http://localhost:9000
    ```
 
    **Note**: Replace `your_password` with the actual PostgreSQL password you set.

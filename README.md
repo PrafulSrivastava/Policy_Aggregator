@@ -43,6 +43,217 @@ For complete tech stack details, see [docs/architecture/tech-stack.md](docs/arch
 - Python 3.10 or higher
 - PostgreSQL 14+ (or use Railway managed database)
 - Git
+- Docker and Docker Compose (for Docker-based deployment)
+
+### Docker-Based Deployment (Recommended)
+
+The easiest way to get started is using Docker Compose, which sets up the frontend (React), backend (FastAPI), and PostgreSQL database automatically.
+
+#### Quick Start with Docker
+
+1. **Create environment file:**
+   
+   Create a `.env` file in the project root with your configuration. All variables from `.env` are automatically loaded into Docker containers.
+   
+   **Quick setup:**
+   ```bash
+   # Copy the example file (env.example) to .env
+   # Windows PowerShell:
+   Copy-Item env.example .env
+   
+   # Linux/macOS:
+   cp env.example .env
+   
+   # Then edit .env and update the values with your configuration
+   ```
+   
+   **Required variables:**
+   ```bash
+   # Database Configuration
+   POSTGRES_USER=postgres
+   POSTGRES_PASSWORD=postgres
+   POSTGRES_DB=policy_aggregator
+   POSTGRES_PORT=5432
+   
+   # Application - Database URL (will be overridden to use Docker service 'db')
+   # You can set this for local development, but Docker Compose will override it
+   DATABASE_URL=postgresql://postgres:postgres@localhost:5432/policy_aggregator
+   
+   # Application - Authentication
+   JWT_SECRET_KEY=your-secret-key-change-in-production
+   JWT_ALGORITHM=HS256
+   JWT_EXPIRE_HOURS=24
+   
+   # Application - General
+   ENVIRONMENT=development
+   LOG_LEVEL=INFO
+   ADMIN_UI_URL=http://localhost:8000
+   FRONTEND_URL=http://localhost:3000
+   
+   # Frontend - API URL (used at build time)
+   # For production with nginx proxy, use empty string or relative path
+   # For development, use http://localhost:8000
+   VITE_API_BASE_URL=http://localhost:8000
+   
+   # Docker - Ports (optional, defaults shown)
+   APP_PORT=8000
+   FRONTEND_PORT=3000
+   
+   # Optional: Email service
+   RESEND_API_KEY=
+   EMAIL_FROM_ADDRESS=alerts@policyaggregator.com
+   ADMIN_EMAIL=
+   
+   # Optional: Google OAuth
+   GOOGLE_OAUTH_CLIENT_ID=
+   GOOGLE_OAUTH_CLIENT_SECRET=
+   GOOGLE_OAUTH_REDIRECT_URI=http://localhost:8000/auth/google/callback
+   
+   # Optional: CORS (comma-separated list)
+   CORS_ORIGINS=http://localhost:8000,http://localhost:3000
+   ```
+   
+   **How it works:**
+   - **All variables from `.env` are automatically loaded** into Docker containers using `env_file` directive
+   - No need to manually specify each variable in docker-compose.yml
+   - The `DATABASE_URL` is automatically overridden in Docker to use `db` as the hostname (Docker service name) instead of localhost
+   - The `VITE_API_BASE_URL` is passed as a build argument to the frontend container (Vite requires env vars at build time)
+   - You only need to set variables you want to customize - defaults are provided for optional variables
+   - Variables can be added/removed from `.env` without modifying docker-compose.yml
+
+2. **Build and start containers:**
+   ```bash
+   docker-compose up -d
+   ```
+
+3. **Create admin user:**
+   ```bash
+   docker-compose exec app python scripts/create_admin_user.py admin
+   ```
+
+4. **Access the application:**
+   - **Frontend (React)**: `http://localhost:3000`
+   - **Backend API**: `http://localhost:8000`
+   - **Health Check**: `http://localhost:8000/health`
+   - **API Documentation**: `http://localhost:8000/docs`
+   - **Admin UI (Jinja2)**: `http://localhost:8000`
+
+#### Docker Commands
+
+```bash
+# Start all services (frontend, backend, database)
+docker-compose up -d
+
+# View logs for all services
+docker-compose logs -f
+
+# View logs for specific service
+docker-compose logs -f app      # Backend
+docker-compose logs -f frontend # Frontend
+docker-compose logs -f db       # Database
+
+# Stop all services
+docker-compose down
+
+# Stop and remove volumes (clean slate)
+docker-compose down -v
+
+# Rebuild after code changes
+docker-compose up -d --build
+
+# Rebuild specific service
+docker-compose up -d --build frontend
+
+# Run database migrations manually
+docker-compose exec app alembic upgrade head
+
+# Access database shell
+docker-compose exec db psql -U postgres -d policy_aggregator
+
+# Run Python commands in container
+docker-compose exec app python scripts/create_admin_user.py admin
+
+# Access frontend container shell
+docker-compose exec frontend sh
+```
+
+#### Development with Hot Reload
+
+For development with automatic code reloading:
+
+1. **Copy the override example:**
+   ```bash
+   cp docker-compose.override.yml.example docker-compose.override.yml
+   ```
+
+2. **Start with override:**
+   ```bash
+   docker-compose up
+   ```
+
+The override file mounts your source code as volumes, enabling hot reload for both backend and frontend when you make changes.
+
+**Note:** In development mode with the override file:
+- Backend runs with `--reload` flag for automatic restart on code changes
+- Frontend uses Vite dev server with hot module replacement (HMR)
+- Both services watch for file changes and reload automatically
+
+#### Architecture Overview
+
+The Docker setup includes three services:
+
+1. **Frontend (React)**: 
+   - Production: Built React app served via nginx on port 3000
+   - Development: Vite dev server with HMR on port 3000
+   - API calls are proxied through nginx to the backend in production
+
+2. **Backend (FastAPI)**:
+   - Runs on port 8000
+   - Handles API requests, authentication, and serves Jinja2 admin UI
+   - Connects to PostgreSQL database
+
+3. **Database (PostgreSQL)**:
+   - PostgreSQL 14 on port 5432
+   - Persistent data stored in Docker volume
+
+**Network Communication:**
+- Frontend → Backend: In production, nginx proxies `/api/*` and `/auth/*` to backend
+- Backend → Database: Direct connection using service name `db`
+- All services are on the same Docker network for internal communication
+
+#### Production Considerations
+
+For production deployment:
+
+1. **Use strong secrets:**
+   - Generate a strong `JWT_SECRET_KEY` (e.g., using `openssl rand -hex 32`)
+   - Use strong database passwords
+   - Store secrets securely (use Docker secrets or environment variable management)
+
+2. **Update CORS origins and URLs:**
+   - Set `CORS_ORIGINS` to include your production frontend and backend domains
+   - Update `ADMIN_UI_URL` to your production backend URL
+   - Update `FRONTEND_URL` to your production frontend URL
+   - Update `VITE_API_BASE_URL` to your production backend URL (or use nginx proxy)
+
+3. **Configure reverse proxy and SSL:**
+   - Use nginx or Traefik in front of both frontend and backend
+   - Enable HTTPS/SSL certificates
+   - Consider using Let's Encrypt for free SSL certificates
+
+4. **Database backups:**
+   - Set up regular backups of the `postgres_data` volume
+   - Consider using managed database services for production
+   - Test restore procedures regularly
+
+5. **Frontend API Configuration:**
+   - The nginx configuration already proxies `/api/*` and `/auth/*` to the backend
+   - For production with nginx proxy, set `VITE_API_BASE_URL` to empty string or `/` in your `.env` file
+   - This allows the frontend to use relative URLs which nginx will proxy to the backend
+   - Example for production: `VITE_API_BASE_URL=`
+   - For development without proxy: `VITE_API_BASE_URL=http://localhost:8000`
+
+### Manual Setup (Without Docker)
 
 ### Virtual Environment Setup
 

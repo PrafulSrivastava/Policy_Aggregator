@@ -50,7 +50,7 @@ jobs:
         # Optional environment variables
         RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
         EMAIL_FROM_ADDRESS: ${{ secrets.EMAIL_FROM_ADDRESS || 'alerts@policyaggregator.com' }}
-        ADMIN_UI_URL: ${{ secrets.ADMIN_UI_URL || 'http://localhost:8000' }}
+        ADMIN_UI_URL: ${{ secrets.ADMIN_UI_URL || 'http://localhost:9000' }}
         
         # Application configuration
         ENVIRONMENT: production

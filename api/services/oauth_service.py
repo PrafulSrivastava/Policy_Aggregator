@@ -48,9 +48,13 @@ def get_google_authorization_url(state: str) -> str:
     if not settings.GOOGLE_OAUTH_CLIENT_ID or not settings.GOOGLE_OAUTH_REDIRECT_URI:
         raise ValueError("Google OAuth credentials not configured")
     
+    redirect_uri = settings.GOOGLE_OAUTH_REDIRECT_URI
+    logger.info(f"Using redirect URI: {redirect_uri}")
+    logger.info(f"IMPORTANT: Ensure this EXACT redirect URI is configured in Google Cloud Console")
+    
     params = {
         "client_id": settings.GOOGLE_OAUTH_CLIENT_ID,
-        "redirect_uri": settings.GOOGLE_OAUTH_REDIRECT_URI,
+        "redirect_uri": redirect_uri,
         "response_type": "code",
         "scope": " ".join(GOOGLE_OAUTH_SCOPES),
         "state": state,
@@ -58,7 +62,10 @@ def get_google_authorization_url(state: str) -> str:
         "prompt": "consent",  # Force consent screen to get refresh token
     }
     
-    return f"{GOOGLE_AUTHORIZATION_URL}?{urlencode(params)}"
+    auth_url = f"{GOOGLE_AUTHORIZATION_URL}?{urlencode(params)}"
+    logger.debug(f"Generated Google OAuth URL (redirect_uri parameter shown): redirect_uri={redirect_uri}")
+    
+    return auth_url
 
 
 async def exchange_google_code(code: str, state: str, expected_state: str) -> Dict[str, Any]:
@@ -147,7 +154,6 @@ async def get_or_create_user_from_google(
         ValueError: If email is missing from Google user info
     """
     from api.repositories.user_repository import UserRepository
-    from api.auth.auth import get_password_hash
     
     email = google_user_info.get("email")
     if not email:
@@ -183,13 +189,11 @@ async def get_or_create_user_from_google(
         return user
     
     # Create new user
-    # For OAuth users, we generate a random password (they won't use it)
-    # In production, you might want to make password nullable for OAuth-only users
-    random_password = secrets.token_urlsafe(32)
-    
+    # OAuth users don't need passwords - hashed_password is nullable
+    # They authenticate via Google OAuth, not password
     user_data = {
         "username": email,
-        "hashed_password": get_password_hash(random_password),  # Random password for OAuth users
+        "hashed_password": None,  # OAuth users don't have passwords
         "google_id": google_id,
         "auth_provider": "google",
         "is_active": True,

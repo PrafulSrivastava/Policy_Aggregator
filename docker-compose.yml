@@ -1,0 +1,79 @@
+services:
+  db:
+    image: postgres:14-alpine
+    container_name: policy_aggregator_db
+    env_file:
+      - .env
+    environment:
+      # These will use values from .env, with defaults as fallback
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-policy_aggregator}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - policy_aggregator_network
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: policy_aggregator_app
+    env_file:
+      - .env
+    environment:
+      # Override DATABASE_URL to use Docker service name 'db' instead of localhost
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-policy_aggregator}
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    volumes:
+      - ./logs:/app/logs
+      - ./admin-ui:/app/admin-ui
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -c "
+        echo 'Waiting for database to be ready...' &&
+        sleep 5 &&
+        echo 'Running database migrations...' &&
+        alembic upgrade head &&
+        echo 'Starting application...' &&
+        uvicorn api.main:app --host 0.0.0.0 --port 8000
+      "
+    networks:
+      - policy_aggregator_network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Pass VITE_API_BASE_URL as build arg (needed at build time for Vite)
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+    container_name: policy_aggregator_frontend
+    env_file:
+      - .env
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      - app
+    networks:
+      - policy_aggregator_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  policy_aggregator_network:
+    driver: bridge
+
